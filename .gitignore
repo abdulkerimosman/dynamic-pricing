@@ -1,0 +1,26 @@
+# .gitignore — Sporthink Dynamic Pricing
+
+# Environment files (NEVER commit these)
+.env
+backend/.env
+*.env.local
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Build outputs
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

@@ -1,0 +1,253 @@
+
+<div id="erd"></div>
+<style>
+#erd { padding: 8px 0; }
+#erd svg { max-width: 100%; }
+</style>
+<script type="module">
+import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+await document.fonts.ready;
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'base',
+  fontFamily: '"Anthropic Sans", sans-serif',
+  themeVariables: {
+    darkMode: dark,
+    fontSize: '13px',
+    fontFamily: '"Anthropic Sans", sans-serif',
+    lineColor: dark ? '#9c9a92' : '#73726c',
+    textColor: dark ? '#c2c0b6' : '#3d3d3a',
+  },
+});
+
+const diagram = `erDiagram
+  urunler {
+    int urun_id PK
+    string barkod UK
+    string stok_kodu UK
+    string urun_adi
+    int kategori_id FK
+    int marka_id FK
+    decimal maliyet
+    string resim_url
+    timestamp olusturma_tarihi
+    timestamp guncelleme_tarihi
+  }
+  kategoriler {
+    int kategori_id PK
+    string kategori_adi
+    decimal kar_beklentisi
+  }
+  marka {
+    int marka_id PK
+    string marka_adi
+  }
+  sezonlar {
+    int sezon_id PK
+    string sezon_adi
+    date baslangic_tarihi
+    date bitis_tarihi
+  }
+  kategori_sezon {
+    int kategori_sezon_id PK
+    int kategori_id FK
+    int sezon_id FK
+  }
+  kanallar {
+    int kanal_id PK
+    string kanal_adi
+    string kanal_url
+    string kanal_aciklamasi
+    boolean kanal_sahibi
+    timestamp olusturma_tarihi
+  }
+  kanal_urun {
+    int kanal_urun_id PK
+    int kanal_id FK
+    int urun_id FK
+    decimal web_liste_fiyati
+    decimal web_indirim_fiyati
+    decimal pazaryeri_liste_fiyat
+    decimal pazaryeri_indirim_fiyat
+  }
+  fiyatlandirma_kurallari {
+    int kural_id PK
+    int kanal_id FK
+    int kategori_id FK
+    decimal komisyon_orani
+    decimal lojistik_gideri
+    decimal kargo_ucreti
+    decimal max_indirim
+    decimal min_kar
+    decimal rekabet_katsayisi
+    decimal geri_gelinebilecek_yuzde
+    decimal aylik_satis_hedefi
+    decimal haftalik_satis_hedefi
+    boolean aktiflik_durumu
+    timestamp gecerlilik_baslangic
+    timestamp gecerlilik_bitis
+  }
+  beden {
+    int beden_id PK
+    string beden_adi
+  }
+  stok {
+    int stok_id PK
+    int urun_id FK
+    int beden_id FK
+    int stok_miktari
+    decimal stok_katsayisi
+    timestamp guncelleme_tarihi
+  }
+  rakipler {
+    int rakip_id PK
+    string rakip_adi
+    string rakip_url
+  }
+  rakip_fiyatlar {
+    int rakip_fiyat_id PK
+    int urun_id FK
+    int rakip_id FK
+    int kanal_id FK
+    int beden_id FK
+    decimal fiyat
+    timestamp veri_kazima_zamani
+  }
+  fiyat_onerileri {
+    int oneri_id PK
+    int kanal_urun_id FK
+    decimal mevcut_fiyat
+    decimal onerilen_fiyat
+    string neden
+    string durum
+    int onaylayan_kullanici_id FK
+    timestamp onay_tarihi
+    timestamp olusturma_tarihi
+  }
+  fiyat_gecmisi {
+    int gecmis_id PK
+    int kanal_urun_id FK
+    decimal eski_fiyat
+    decimal yeni_fiyat
+    int degistiren_kullanici_id FK
+    string degisim_nedeni
+    timestamp degisim_tarihi
+  }
+  alertler {
+    int alert_id PK
+    int kanal_urun_id FK
+    string alert_tipi
+    string mesaj
+    string durum
+    timestamp olusturma_tarihi
+    timestamp cozulme_tarihi
+    int cozen_kullanici_id FK
+  }
+  kampanya_planlari {
+    int kampanya_id PK
+    int kanal_id FK
+    int sezon_id FK
+    string kampanya_adi
+    date baslangic_tarihi
+    date bitis_tarihi
+    decimal hedef_indirim_orani
+    decimal hedef_karlilik
+  }
+  satislar {
+    int satis_id PK
+    int kanal_urun_id FK
+    int satis_miktari
+    decimal birim_fiyat
+    decimal maliyet_snapshot
+    timestamp satis_tarihi
+  }
+  kullanicilar {
+    int kullanici_id PK
+    string ad_soyad
+    string eposta
+    timestamp olusturma_tarihi
+  }
+  roller {
+    int rol_id PK
+    string rol_adi
+    string aciklama
+  }
+  kullanici_rol {
+    int kullanici_rol_id PK
+    int kullanici_id FK
+    int rol_id FK
+  }
+  islem_log {
+    int islem_log_id PK
+    int kullanici_id FK
+    string islem_tipi
+    string tablo_adi
+    string kayit_id
+    string aciklama
+    string ip_adresi
+    timestamp islem_tarihi
+  }
+  hata_log {
+    int hata_log_id PK
+    string hata_tipi
+    string hata_mesaji
+    string yigin_izi
+    string endpoint
+    timestamp hata_tarihi
+  }
+
+  urunler }o--|| kategoriler : "ait"
+  urunler }o--|| marka : "ait"
+  urunler ||--o{ kanal_urun : "listelenir"
+  urunler ||--o{ stok : "takip"
+  urunler ||--o{ rakip_fiyatlar : "karsilastirma"
+  kanallar ||--o{ kanal_urun : "icerir"
+  kanallar ||--o{ fiyatlandirma_kurallari : "icerir"
+  kanallar ||--o{ rakip_fiyatlar : "kanalda"
+  kanallar ||--o{ kampanya_planlari : "yurutulur"
+  kategoriler ||--o{ kategori_sezon : "ait"
+  kategoriler ||--o{ fiyatlandirma_kurallari : "icerir"
+  sezonlar ||--o{ kategori_sezon : "icerir"
+  sezonlar ||--o{ kampanya_planlari : "filtreler"
+  beden ||--o{ stok : "boyut"
+  beden ||--o{ rakip_fiyatlar : "boyut"
+  rakipler ||--o{ rakip_fiyatlar : "saglar"
+  kanal_urun ||--o{ fiyat_onerileri : "alir"
+  kanal_urun ||--o{ fiyat_gecmisi : "takip"
+  kanal_urun ||--o{ alertler : "tetikler"
+  kanal_urun ||--o{ satislar : "satis"
+  kullanicilar ||--o{ kullanici_rol : "atar"
+  kullanicilar ||--o{ fiyat_onerileri : "onaylar"
+  kullanicilar ||--o{ fiyat_gecmisi : "degistirir"
+  kullanicilar ||--o{ alertler : "cozer"
+  kullanicilar ||--o{ islem_log : "yapar"
+  roller ||--o{ kullanici_rol : "icerir"
+`;
+
+const { svg } = await mermaid.render('erd-svg', diagram);
+document.getElementById('erd').innerHTML = svg;
+
+document.querySelectorAll('#erd svg.erDiagram .node').forEach(node => {
+  const firstPath = node.querySelector('path[d]');
+  if (!firstPath) return;
+  const d = firstPath.getAttribute('d');
+  const nums = d.match(/-?[\d.]+/g)?.map(Number);
+  if (!nums || nums.length < 8) return;
+  const xs = [nums[0], nums[2], nums[4], nums[6]];
+  const ys = [nums[1], nums[3], nums[5], nums[7]];
+  const x = Math.min(...xs), y = Math.min(...ys);
+  const w = Math.max(...xs) - x, h = Math.max(...ys) - y;
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', x); rect.setAttribute('y', y);
+  rect.setAttribute('width', w); rect.setAttribute('height', h);
+  rect.setAttribute('rx', '8');
+  for (const a of ['fill', 'stroke', 'stroke-width', 'class', 'style']) {
+    if (firstPath.hasAttribute(a)) rect.setAttribute(a, firstPath.getAttribute(a));
+  }
+  firstPath.replaceWith(rect);
+});
+document.querySelectorAll('#erd svg.erDiagram .row-rect-odd path, #erd svg.erDiagram .row-rect-even path').forEach(p => {
+  p.setAttribute('stroke', 'none');
+});
+</script>

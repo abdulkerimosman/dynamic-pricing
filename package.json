@@ -1,0 +1,12 @@
+{
+  "name": "sporthink-seeder",
+  "version": "1.0.0",
+  "description": "Sporthink DB seeder — run from project root",
+  "scripts": {
+    "seed": "node scripts/seed.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "mysql2": "^3.9.7"
+  }
+}

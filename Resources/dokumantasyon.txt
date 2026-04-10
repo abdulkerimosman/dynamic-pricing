@@ -1,0 +1,379 @@
+Dinamik E-Ticaret Fiyatlama Sistemi 
+Üniversite Projesi Teknik Brief Dokümanı
+Projenin Hedefi
+Bu proje; rakip fiyatları, stok durumu, talep sinyalleri, karlılık ve maliyet hedeflerini, arz ve talep durumu ile mevsimsel uyumluluk gözeterek ürün fiyatlarını otomatik ve kontrollü biçimde güncelleyen bir fiyatlama motoru geliştirmeyi amaçlar. Sistem kural tabanlara göre pazaryeri ve web sitesi fiyatlarını ayrı ayrı belirler. Alert durumlarını tespit eder ve kullanıcıya raporlar. Öneri fiyatlarını rakip fiyatlar, karlılık ve maliyet hesaplamasına göre takip eder. 
+
+Amaç
+Aylık ve haftalık ciro hedeflerine göre fiyatlandırma önerileri yapmak ve odaklanılması gereken ürün ve fiyatlarını tespit edebilmek.
+Fiyatlandırma stratejilerinde potansiyel olasılıkları dinamik şekilde takip edebilmek. 
+Kontrollü rakip fiyat takip sistemi ile anlık değişimleri yakalayarak satış potansiyellerini kaçırmamak. 
+Pazaryerleri kampanyalarını aylık olarak otomatik hazırlamak ve karlılık hesabına göre segmente edebilmek. 
+
+TEKNİK MİMARİ VE TASARIM GEREKLİLİKLERİ
+2.1 Karar Motoru (Pricing Decision Engine) ve Teknoloji Tercihleri
+Bu tip kural tabanlı karar mekanizmalarında yaygın olarak Python kullanılmaktadır. Projede de varsayılan geliştirme dili olarak Python tercih edilecektir.
+2.2 Dış Bağımlılıklar ve Veri Kaynağı
+Sistem kararlarının çalışması için dışarıdan kritik tek veri girdisi rakip fiyat verileridir.
+Rakip fiyat verisi, mevcut sistemler tarafından düzenli şekilde toplanmaktadır. İlgili mekanizma (benchmark sistemi), tarafımızdan sağlanacaktır.
+Yayına çıkış öncesi geliştirme aşamasında, öğrencilerin geliştirme ve test yapabilmesi için dummy (sentetik) veri seti sağlanacaktır.
+
+
+
+2.3 Beklenen İşlevsellik ve Öğrenci Çıktısı
+Projede amaç; fiyatlandırmada kullanılan kural setinin dokümante edilmesi ve öğrencilerden beklentinin bu kuralları seçilen programlama dilinde (Python) uygulayarak otomatik fiyat önerisi üreten bir motor geliştirmesidir.
+Beklenen çıktılar:
+Kural setinin kodlanması (if/else, ağırlıklandırma, guardrail’ler vb.)
+Ürün bazlı “önerilen fiyat” üretimi
+Gerekli durumlarda uyarı/alert üretimi (kârlılık ihlali, rakip fiyat düşüşü, stok riski vb.)
+Fiyat önerilerinin veri tabanına kaydedilmesi ve UI/rapora servis edilebilir hale getirilmesi
+Guardrail: Sistem “fiyat önerisi üretirken” asla aşmaması gereken sınırlar. Örn: kârlılık hedefinin altına inme, maksimum indirim sınırı.
+2.4 Veri Saklama Katmanı (Database)
+Toplanan rakip fiyat verileri, ürün maliyetleri ve fiyat önerileri gibi kritik verilerin saklanması için ilişkisel veritabanı kullanımı öngörülmektedir. Bu amaçla:
+MySQL tercih edilebilir.
+Veri modeli; ürün, mevcut fiyat, rakip fiyat, stok ve fiyat öneri tablolarını içerecek şekilde tasarlanacaktır.
+
+
+ANALİTİK MOTOR (BUSINESS LOGIC)
+Sistem, aşağıdaki algoritmaları uçtan uca işletmelidir:
+
+Aylık gerçekleşmesi beklenen ciro: Pazaryerlerinin ve web sitesinin aylık gerçekleşmesi beklenen ciro dağılımlarına göre, kanal potansiyelleri dikkate alınarak ve karlılık oranı gözetilerek fiyatlandırma çalışmaları yapmak. Sistem, hedeflerin tutmamasını ön gördüğü durumlar için dinamik şekilde alert yollayabilir.
+Ürün maliyeti: Sisteme yüklenen maliyet bilgilerini kullanmak.
+Ürünün stok durumu: Ürünün stokları gözetilerek, satış potansiyeli ve gerçekleşen satışına göre fiyatlandırma önerileri vermek. 
+Ürünün beden kırıklığı: Ürünün beden kırıklığı kontrol edilerek fiyatlandırmada minimum-maximum indirim alertleri vermek. 
+Ürünün karlılık beklentisi: Sisteme kategorisel olarak import edilen şirket hedeflenen karlılık oranlarını dikkate alarak karlılık kontrolü yapmak.
+Mevsimsel uyumluluk: Kategorisel olarak mevsim bilgileri sisteme import edildikten sonra ürünlerin mevsimsel uygunluğu belirlenir ve potansiyel ürünler tespit edildikten sonra fiyatlandırma önerileri sunulur. 
+Rakip fiyatlar: Dinamik olarak takip edilen rakip fiyatlara göre fiyatta kaybettiğimiz ürünler için alert fiyat önerileri göndermek ve raporlamak.
+Pazaryerleri kampanya fiyat önerileri: Sisteme import edilen pazaryerleri kampanya süreç bilgilerine göre (x pazaryeri için girilen komisyon oranları, hedeflenen indirim ve karlılık oranları, geri gelinebilecek yüzdelik opsiyonlar, web sitesi fiyatlandırmaları) aylık fiyatlandırma çalışmaları hazırlamak ve raporlamak.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+4. KULLANICI ARAYÜZÜ (UI/UX) VE SAYFA YAPISI
+Sayfa Adı
+İçerik ve Fonksiyonellik
+Dashboard
+Sistem genel durumunun özetlendiği ana ekran. Kanal bazlı (Web sitesi / Pazaryeri) satış performansı, aylık ciro hedefleri, karlılık oranları ve fiyat değişim önerileri grafiklerle gösterilir. Rakip fiyat farkı yüksek olan ürünler, stok riski olan ürünler ve fiyat alarmı üreten ürünler bu ekranda uyarı olarak listelenir.
+Ürün Fiyat Analizi (Product Pricing Panel)
+Her ürün için maliyet, mevcut fiyat, önerilen fiyat, rakip fiyat ortalaması ve karlılık oranları gösterilir. Sistem tarafından hesaplanan öneri fiyatları kullanıcı tarafından incelenebilir ve onaylanabilir. Fiyat değişim geçmişi ve fiyat trend grafikleri bu ekranda görüntülenir.
+Rakip Fiyat Takibi
+Dummy data ile çekilen rakip fiyatları burada listelenir. Rakip site adı, ürün fiyatı, fiyat değişim zamanı ve bizim fiyatımız ile aradaki fark gösterilir. Sistem rakip fiyatına göre satış kaybedilen ürünleri tespit ederek kullanıcıya fiyat önerisi sunar.
+Kampanya Planlama (Marketplace Campaign Manager)
+Pazaryerleri için kampanya fiyat önerilerinin hazırlandığı paneldir. Komisyon oranları, hedeflenen indirim oranları ve karlılık beklentileri dikkate alınarak sistem otomatik kampanya fiyatları üretir. Kullanıcı bu fiyatları düzenleyebilir ve kampanya planlarını aylık olarak raporlayabilir.
+Stok & Talep Analizi
+Ürünlerin stok durumları, satış hızları ve talep trendleri analiz edilir. Stok fazlası olan ürünler için indirim önerileri, stok azalan ürünler için fiyat artırma/düşürme önerileri sistem tarafından oluşturulur. Ayrıca beden kırıklığı olan ürünler için fiyat alarmı oluşturulur.
+Ayarlar & Import & Export
+Ürün maliyetleri, kategori bazlı karlılık hedefleri, pazaryeri komisyon oranları, sezon bilgileri ve rakip ürün eşleştirmeleri bu ekrandan sisteme yüklenir. CSV / Excel veri import işlemleri yapılabilir ve sistem parametreleri yönetilebilir. Sonuçları dışarı aktarmak için export işlemleri yapılır.
+
+
+
+
+
+5. GÜVENLİK VE KVKK UYUMU
+Veri Maskeleme:
+Sistemde yer alan hassas ticari veriler (ürün maliyetleri, karlılık oranları, kampanya indirim oranları gibi) yetkisiz kullanıcılar tarafından görüntülenemez. Rol bazlı erişim kontrolü (RBAC) uygulanarak yalnızca yetkili kullanıcıların bu bilgilere erişmesi sağlanır. Gerekli durumlarda maliyet gibi kritik bilgiler kullanıcı arayüzünde maskelenmiş şekilde gösterilebilir.
+Erişim Yetkilendirme (Authentication & Authorization):
+Sisteme giriş yapan kullanıcılar kimlik doğrulama (JWT veya token tabanlı authentication) ile doğrulanır. Kullanıcılar farklı rollerle sisteme erişebilir (Admin, Operasyon, Analiz vb.). Her rolün sistemde erişebileceği veri ve fonksiyonlar sınırlandırılır.
+Veri Güvenliği:
+Rakip sitelerden toplanan fiyat verileri ve sistemde saklanan maliyet bilgileri güvenli veri tabanında tutulur. 
+Loglama ve İzleme:
+Sistem üzerinde gerçekleşen tüm kritik işlemler (fiyat güncellemeleri, veri import işlemleri, kullanıcı girişleri ve hatalar) log kayıtları ile takip edilir. 
+Veri Bütünlüğü ve Yedekleme:
+Sistemde bulunan fiyat, stok ve maliyet verileri düzenli olarak yedeklenir. Olası sistem hatalarında verinin kaybolmaması için veri tabanı yedekleme mekanizmaları uygulanır.
+6. SİSTEM MİMARİSİ
+Dinamik E-Ticaret Fiyatlama Sistemi modüler bir mimari üzerine kurulmuştur. Sistem; veri toplama, veri işleme, fiyat hesaplama ve fiyat yayınlama olmak üzere dört ana katmandan oluşur.
+Sistem Bileşenleri
+1. Veri Toplama Katmanı (Data Collection Layer)
+Rakip sitelerden ürün fiyatlarını çekmek için ürün rakip analizi mekanizması kullanılır. Bu katman belirli aralıklarla rakip fiyat verilerini toplar.
+2. Veri İşleme Katmanı (Data Processing Layer)
+Toplanan ham veriler temizlenir, normalize edilir ve veri tabanına kaydedilir. Farklı kaynaklardan gelen fiyat verileri standart formata dönüştürülür.
+3. Fiyatlama Motoru (Pricing Engine)
+Sistemin ana karar mekanizmasıdır. Bu motor aşağıdaki değişkenleri analiz eder:
+Rakip fiyatları
+Ürün maliyeti
+Hedef karlılık oranı
+Stok durumu
+Talep sinyalleri
+Mevsimsel uygunluk
+Bu değişkenlere göre sistem öneri fiyat üretir.
+4. Entegrasyon Katmanı (Integration Layer)
+Sistem Akış Diyagramı
+Rakip Siteler
+      │
+      ▼
+Ürün Rakip Analizi Mekanizması
+      │
+      ▼
+Veri Temizleme ve Normalizasyon
+      │
+      ▼
+Fiyatlama Motoru (Pricing Algorithm)
+      │
+      ▼
+Fiyat Öneri Sistemi
+      │
+      ▼
+E-Ticaret Entegrasyonu
+      │
+      ▼
+Web Sitesi / Pazaryeri Fiyat Güncellemesi
+
+7. VERİTABANI TASARIMI (ER DİAGRAMI)
+Sistem, fiyatlama kararlarını desteklemek için farklı veri tabloları kullanır.
+
+Products
+Alan
+Açıklama
+product_id
+Ürün ID
+product_name
+Ürün adı
+category
+Kategori
+cost
+Ürün maliyeti
+target_margin
+Hedef karlılık
+
+
+Competitor_Prices
+Alan
+Açıklama
+competitor_id
+Rakip ID
+product_id
+Ürün ID
+competitor_price
+Rakip fiyatı
+scraped_date
+Veri çekilme tarihi
+
+
+Inventory
+Alan
+Açıklama
+product_id
+Ürün ID
+stock_quantity
+Stok miktarı
+stock_days
+Tahmini stok gün sayısı
+
+
+Price_Recommendations
+Alan
+Açıklama
+product_id
+Ürün ID
+current_price
+Mevcut fiyat
+suggested_price
+Önerilen fiyat
+reason
+Fiyat değişim nedeni
+created_at
+Hesaplanma tarihi
+
+
+ER Diyagramı (Basit Gösterim)
+Products
+   │
+   ├──────── Competitor_Prices
+   │
+   ├──────── Inventory
+   │
+   └──────── Price_Recommendations
+
+8. FİYATLAMA ALGORİTMASI
+Sistem fiyat belirlerken aşağıdaki değişkenleri dikkate alır.
+Girdi Değişkenleri
+Ürün maliyeti
+Hedef karlılık
+Rakip fiyatları
+Stok durumu
+Talep seviyesi
+Mevsimsel uygunluk
+
+Temel Fiyat Formülü
+Önerilen fiyat; kârlılığı koruyan minimum fiyat hesaplamasıdır.
+Önerilen fiyat aşağıdaki formüle göre hesaplanır.
+Önerilen Fiyat = max(Maliyet × (1 + Hedef Karlılık), Rakip Fiyat Ortalaması × Rekabet Katsayısı)
+Hedef Karlılık: Kategorisel olarak hedeflediğimiz min karlılık oranları iletilecektir.
+Rekabet Katsayısı: Rakibe göre fiyat pozisyonunu belirleyen çarpan.
+  Örnekler:
+0.98 → rakip ortalamasından %2 daha düşük fiyatlan
+1.00 → rakiple aynı seviyede kal
+1.02 → rakipten %2 daha yüksek (premium strateji)
+  Kullanım: Rakip ortalaması ile çarpılıp bir hedef fiyat çıkarılır.
+
+
+Talep ve Stok Faktörü
+Bu aşama “piyasa + kârlılık” ile bulunan fiyatı, ürünün talep ve stok riskine göre mikro ayarlamak içindir.
+Stok ve talep durumuna göre fiyat güncellenir.
+Fiyat = Önerilen Fiyat × Talep Katsayısı × Stok Katsayısı
+
+Stok Katsayısı Örnek:
+Durum
+Katsayı
+Stok çok yüksek
+0.95
+Normal stok
+1
+Stok düşük
+1.05
+Talep Katsayısı Örnek: 
+
+
+Talep yüksek → 1.03
+Normal → 1.00
+Talep düşük → 0.97
+
+
+
+
+
+
+Rakip Fiyat Stratejisi
+“Rakip piyasasına göre nerede konumlanacağız?” yaklaşımıdır.
+Rakip fiyat ortalaması hesaplanır.
+Rakip Ortalama Fiyat = (Rakip1 + Rakip2 + Rakip3) / n
+Sonrasında sistem rekabet stratejisine göre fiyat belirler.
+Bizim Fiyat = Rakip Ortalama × 0.98
+Bu sayede sistem rakiplerden %2 daha düşük fiyatla satış avantajı elde edebilir.
+
+9. ALERT MEKANİZMASI
+Sistem aşağıdaki durumlarda kullanıcıya uyarı gönderir.
+Fiyat Alarmı
+Rakip fiyatı %10 düşerse
+Karlılık hedefi bozulursa
+Stok Alarmı
+Stok kritik seviyeye gelirse
+Talep Alarmı
+Satış trendi hızla düşerse
+
+6. BAŞARI SENARYOLARI (USER STORIES) – Dinamik Fiyatlama Odaklı
+US-01 — Ürün bazlı öneri fiyatı görme ve onaylama
+Ürünün maliyetini, mevcut fiyatını, rakip fiyat ortalamasını ve önerilen fiyatı tek ekranda görmek ve öneriyi onaylayarak yayına almak istiyorum; böylece fiyat güncellemelerini kontrollü yapabilirim.
+Kabul Kriterleri
+Ürün satırında: mevcut fiyat, maliyet, hedef kârlılık, rakip ortalama, öneri fiyat, öneri nedeni görünür.
+“Onayla” denmeden fiyat yayınlanmaz (manual approval).
+Onaylanan fiyatın ne zaman, kim tarafından onaylandığı loglanır.
+Öneri fiyat, kârlılık hedefinin altına düşüyorsa sistem bloklar veya “yüksek risk” uyarısı verir.
+US-02 — Kanal bazlı fiyat kuralı (Web / Pazaryeri ayrımı)
+Web sitesi ve pazaryeri kanalları için ayrı kural setleri tanımlamak istiyorum; böylece komisyon ve hedef kârlılık farklarını doğru yönetebilirim.
+Kabul Kriterleri
+Kanal bazlı: komisyon oranı, minimum kârlılık, maksimum indirim, rekabet katsayısı tanımlanabilir.
+Aynı ürün için web ve pazaryeri öneri fiyatları farklı hesaplanabilir.
+Kural değişiklikleri versiyonlanır (eski kurala dönülebilir).
+US-03 — Rakip fiyat düşüşüne anlık/planlı alert
+Rakip fiyat belirli bir eşik altına indiğinde uyarı almak istiyorum; böylece satış kaybı yaşamadan aksiyon alabilirim.
+Kabul Kriterleri
+“Rakip fiyat %X düştü” tetikleyicisi çalışır (örn. %10).
+Alert içinde: rakip, eski/yeni fiyat, fark %, ürün linki, öneri fiyat ve öneri nedeni yer alır.
+Alert’ler Dashboard’da listelenir; “Çözüldü” olarak işaretlenebilir.
+US-04 — Stok fazlası / stok riski için fiyat önerisi
+Stok fazlası olan ürünlerde indirim, kritik stokta ise fiyat artırma önerisi görmek istiyorum; böylece stok gün sayısını optimize edebilirim.
+Kabul Kriterleri
+“stock_days” veya “stock_quantity” eşiklerine göre stok katsayısı otomatik uygulanır.
+Stok çok yüksekse öneri fiyat düşer; stok düşükse artar (dokümandaki katsayı tablosu).
+Kritik stokta “fiyat artırma önerisi” çıkarken kârlılık kontrolü bozulmaz.
+US-05 — Beden kırıklığına göre indirim sınırı alerti
+Beden kırıklığı oluştuğunda sistemin maksimum indirim sınırlarını zorlamadan uyarı vermesini istiyorum; böylece elde kalma riskini yönetirken marka/fiyat algısını koruyabilirim.
+Kabul Kriterleri
+Beden kırıklığı metriği (ör. “mevcut beden sayısı / toplam beden sayısı”) hesaplanır.
+Kırıklık yüksekse sistem “indirim opsiyonu” önerir ama min–max indirim sınırlarını ihlal etmez.
+İhlal durumunda “manuel karar gerekli” olarak işaretler.
+US-06 — Mevsimsel uyumluluğa göre kampanya listesi
+Mevsime uygun ürünleri otomatik shortlist olarak görmek istiyorum; böylece kampanya planlamasını hızlı yapabilirim.
+Kabul Kriterleri
+Kategori–sezon eşlemesi import edilir.
+Sezona uygun ürünler “Kampanya Planlama” ekranında filtrelenebilir.
+Sezon dışı ürünlerde sistem indirim önerisini daha agresif yapabilir (kurala bağlı).
+US-07 — Aylık ciro hedefi sapması için erken uyarı
+Aylık hedef ciro gerçekleşmeyecek gibi göründüğünde sistemin erken uyarı üretmesini istiyorum; böylece fiyat/kampanya stratejisini zamanında revize edebilirim.
+Kabul Kriterleri
+Kanal bazlı hedef vs gerçekleşen takip edilir (günlük/haftalık trend).
+Hedefin altında kalma öngörüsü oluşursa “Hedef riski” alert’i üretir.
+Alert’te önerilen aksiyon: “kampanya önerileri üret / rekabet katsayısını değiştir / indirim bandını güncelle” gibi seçenekler bulunur.
+
+
+US-08 — Fiyat  işi ve açıklanabilirlik
+Önerilen fiyatın nedenini ve geçmiş değişimleri görmek istiyorum; böylece kararları denetleyebilirim.
+Kabul Kriterleri
+Price_Recommendations tablosunda “reason” alanı dolu olur (kural + veri 	özetini içerir).
+Ürün ekranında fiyat trend grafiği + “değişim nedeni” listesi görünür.
+Sonradan denetim için log kayıtları (kim, neyi, ne zaman) saklanır.
+US-09 — Import ve Export
+Raporların hazırlanabilmesi için gerekli veriler sistem parametrelerinin içine import edilebilir. Fiyat motorunun hazırladığı tüm sonuçlar aynı şekilde export alınabilir.
+
+
+7. TESLİMAT VE DEĞERLENDİRME TAKVİMİ – 14 Haftalık (Fiyatlama Motoru)
+Hafta 1 — Proje Başlangıç & Kapsam Kilidi
+Kapsam netleştirme (web/pazaryeri kanalları, veri kaynakları)
+Başarı metrikleri: “kârlılık korunumu”, “rakip farkı azalması”, “stok gün hedefi”
+Çıktı: Kapsam dokümanı + kabul kriterleri
+Hafta 2–3 — Tasarım Onayı
+ER diyagramının final hali (Products, Competitor_Prices, Inventory, Price_Recommendations + ek tablolar: Rules, Channels, Alerts, Users/Roles)
+Pricing öneri, onayla/yayınla, import, alert listesi
+Wireframe / sayfa akışları
+Çıktı: ER wireframe seti
+Hafta 4–5 — Backend Temeli
+Ürün, stok, maliyet, rakip fiyat
+Import (CSV/Excel) + doğrulama
+RBAC/JWT temel auth
+Çıktı: DB migration + örnek import dosyaları
+Hafta 6–8 — Pricing Engine (Business Logic)
+Temel formül + katsayılar (talep/stok)
+Kârlılık kontrolü (min margin guardrail: Final fiyat, min kârlılık fiyatının altına düşerse:“blokla” veya “yüksek risk” uyarısı 
+
+Beden kırıklığı ve mevsimsel kurallar
+Kampanya fiyat önerisi üretimi (pazaryeri komisyonlarıyla)
+Çıktı: “Öneri üret” endpoint’i + unit testler (kural senaryoları)
+Hafta 9–10 — Scraping & Veri İşleme
+Rakip fiyat scraping (planlı job) / veya simülasyon veri kaynağı
+Normalizasyon + competitor mapping
+Alert motoru tetikleyicileri
+Çıktı: Zamanlanmış job + örnek rakip dataset + alert üretimi
+Hafta 11–12 — Frontend & Dashboard
+Dashboard metrikleri (kanal bazlı hedef/gerçekleşen, alert listesi)
+Product Pricing Panel (onay akışı, trend grafikleri)
+Kampanya planlama ekranı
+Çıktı: Çalışır UI 
+Hafta 13 — Entegrasyon & Yayına Alma Simülasyonu
+E-ticaret entegrasyonu (mock veya gerçek)
+Rate-limit, hata yönetimi, retry
+Loglama/izleme panosu (basit)
+Çıktı: Uçtan uca demo akışı (öner → onay → yayınla)
+Hafta 14 — Final Teslim
+Docker + kurulum dokümanı
+Test raporu (unit + temel entegrasyon)
+Kullanıcı kılavuzu + demo videosu/slide
+Çıktı: Final paket + sunum
+
+
+Zaman planlaması örnek olarak girilmiştir. Teslim sürecinize göre zaman planlamalarını revize edebilirsiniz.
+
+Selen GÜNAYDIN
+05380590988
+Selen.gunaydin@sporthink.com.tr
+
+Ahmet GEÇGEL
+05336207407
+Ahmet.gecgel@sporthink.com.tr
+
