@@ -2,15 +2,16 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, Tooltip } from 'recharts';
 import api from '../api';
+import ProductThumb from '../components/ProductThumb';
 
 // One color per channel (consistent across renders)
 const CHANNEL_COLORS = ['#e11d48', '#0284c7', '#16a34a', '#d97706', '#7c3aed'];
 
 function KpiCard({ value, label, labelRed }) {
   return (
-    <div className="border border-gray-300 p-6 flex flex-col justify-center items-start bg-white">
-      <div className="text-4xl font-semibold text-slate-800 mb-2">{value}</div>
-      <div className={`font-medium ${labelRed ? 'text-red-600' : 'text-slate-600'}`}>{label}</div>
+    <div className="panel p-5 flex flex-col justify-center items-start min-h-[118px]">
+      <div className="text-xs font-semibold tracking-wide uppercase text-gray-500 mb-2">{label}</div>
+      <div className={`text-4xl font-semibold ${labelRed ? 'text-red-600' : 'text-gray-900'}`}>{value}</div>
     </div>
   );
 }
@@ -51,21 +52,44 @@ export default function Dashboard() {
   const aktifKanalIds = dashboardData?.aktif_kanal_ids || [];
 
   return (
-    <div className="p-4 flex flex-col gap-6 max-w-screen-2xl bg-white min-h-screen">
+    <div className="page-shell min-h-screen">
 
-      {/* TOP SECTION */}
-      <div className="flex gap-6">
+      <div>
+        <h1 className="page-title">Dashboard</h1>
+        <p className="page-subtitle">Kanal bazlı performans, hedef gerçekleşme ve operasyonel uyarılar</p>
+      </div>
 
-        {/* LEFT SIDEBAR (SLICERS) */}
-        <div className="w-64 flex flex-col gap-6 shrink-0">
-          <div className="border border-gray-300 p-5 bg-white">
+      {/* KPI Row - full width */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <KpiCard
+          value={`%${((dashboardData?.karlilik_orani || 0) * 100).toFixed(0)}`}
+          label="Karlılık Oranı"
+        />
+        <KpiCard
+          value={dashboardData?.fiyat_degisim_oneri || 0}
+          label="Fiyat Değişim Öneri"
+        />
+        <KpiCard
+          value={`%${((dashboardData?.aylik_ciro_hedefi_gerceklesmis || 0) * 100).toFixed(0)}`}
+          label="Aylık Ciro Hedefi Gerçekleşmiş"
+        />
+        <KpiCard
+          value={dashboardData?.aktif_uyari || 0}
+          label="Aktif Uyarı"
+        />
+      </div>
+
+      {/* Filters (25%) + Graph (75%) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="lg:col-span-3 space-y-4">
+          <div className="panel p-5">
             <h3 className="text-xl font-bold mb-4 text-gray-800">Kanallar</h3>
             <div className="space-y-3">
               {(kanallar || []).map(k => (
                 <label key={k.kanal_id} className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
-                    className="w-5 h-5 accent-black grayscale border-gray-300 rounded-sm"
+                    className="w-5 h-5 accent-black grayscale border-gray-200 rounded-sm"
                     checked={selectedChannels.includes(k.kanal_id)}
                     onChange={() => toggleChannel(k.kanal_id)}
                   />
@@ -75,14 +99,14 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="border border-gray-300 p-5 bg-white">
+          <div className="panel p-5">
             <h3 className="text-xl font-bold mb-4 text-gray-800">Yıl</h3>
             <div className="space-y-3">
               {years.map(y => (
                 <label key={y} className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
-                    className="w-5 h-5 accent-black grayscale border-gray-300 rounded-sm"
+                    className="w-5 h-5 accent-black grayscale border-gray-200 rounded-sm"
                     checked={selectedYear === y}
                     onChange={() => setSelectedYear(y)}
                   />
@@ -93,95 +117,72 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* RIGHT MAIN AREA */}
-        <div className="flex-1 flex flex-col gap-10 overflow-hidden">
+        <div className="lg:col-span-9 panel p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-5">
+            Satış Performansı (Seçilen Yıl: {selectedYear})
+          </h2>
+          <div className="h-[360px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={dashboardData?.grafik_verisi || []} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="ay" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} tickFormatter={v => `${(v/1000000).toFixed(1)}M`} />
+              <Tooltip formatter={(v) => v ? `${(v/1000000).toFixed(2)}M ₺` : '—'} />
+              <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px' }} />
 
-          {/* KPI Row */}
-          <div className="grid grid-cols-4 gap-4">
-            <KpiCard
-              value={`%${((dashboardData?.karlilik_orani || 0) * 100).toFixed(0)}`}
-              label="Karlılık Oranı"
-            />
-            <KpiCard
-              value={dashboardData?.fiyat_degisim_oneri || 0}
-              label="Fiyat Değişim Öneri"
-            />
-            <KpiCard
-              value={`%${((dashboardData?.aylik_ciro_hedefi_gerceklesmis || 0) * 100).toFixed(0)}`}
-              label="Aylık Ciro Hedefi Gerçekleşmiş"
-            />
-            <KpiCard
-              value={dashboardData?.aktif_uyari || 0}
-              label="Aktif Uyarı"
-            />
-          </div>
+              {/* Confidence band */}
+              <Area
+                name="Güven Aralığı (Tahmin)"
+                type="monotone"
+                dataKey="tahmin_araligi"
+                stroke="none"
+                fill="#bae6fd"
+                fillOpacity={0.5}
+              />
 
-          {/* Graph Area */}
-          <div className="h-96">
-            <h2 className="text-center font-bold text-gray-800 mb-6">
-              Satış Performansı (Seçilen Yıl: {selectedYear})
-            </h2>
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={dashboardData?.grafik_verisi || []} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="ay" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} tickFormatter={v => `${(v/1000000).toFixed(1)}M`} />
-                <Tooltip formatter={(v) => v ? `${(v/1000000).toFixed(2)}M ₺` : '—'} />
-                <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px' }} />
-
-                {/* Confidence band */}
-                <Area
-                  name="Güven Aralığı (Tahmin)"
-                  type="monotone"
-                  dataKey="tahmin_araligi"
-                  stroke="none"
-                  fill="#bae6fd"
-                  fillOpacity={0.5}
-                />
-
-                {/* One line per active channel */}
-                {aktifKanalIds.map((kId, idx) => (
-                  <Line
-                    key={`kanal_${kId}`}
-                    name={kanalAdlari[kId] || `Kanal ${kId}`}
-                    type="monotone"
-                    dataKey={`kanal_${kId}`}
-                    stroke={CHANNEL_COLORS[idx % CHANNEL_COLORS.length]}
-                    strokeWidth={3}
-                    dot={false}
-                    connectNulls={false}
-                  />
-                ))}
-
-                {/* Target line */}
+              {/* One line per active channel */}
+              {aktifKanalIds.map((kId, idx) => (
                 <Line
-                  name="Hedef Aylık Satış"
+                  key={`kanal_${kId}`}
+                  name={kanalAdlari[kId] || `Kanal ${kId}`}
                   type="monotone"
-                  dataKey="hedef"
-                  stroke="#64748b"
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
+                  dataKey={`kanal_${kId}`}
+                  stroke={CHANNEL_COLORS[idx % CHANNEL_COLORS.length]}
+                  strokeWidth={3}
                   dot={false}
+                  connectNulls={false}
                 />
+              ))}
 
-                {/* Forecast line */}
-                <Line
-                  name="ML Tahmini"
-                  type="monotone"
-                  dataKey="tahmin"
-                  stroke="#0284c7"
-                  strokeWidth={2}
-                  strokeDasharray="3 3"
-                  dot={false}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
+              {/* Target line */}
+              <Line
+                name="Hedef Aylık Satış"
+                type="monotone"
+                dataKey="hedef"
+                stroke="#64748b"
+                strokeWidth={2}
+                strokeDasharray="5 5"
+                dot={false}
+              />
+
+              {/* Forecast line */}
+              <Line
+                name="ML Tahmini"
+                type="monotone"
+                dataKey="tahmin"
+                stroke="#0284c7"
+                strokeWidth={2}
+                strokeDasharray="3 3"
+                dot={false}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
           </div>
         </div>
       </div>
 
       {/* BOTTOM SECTION: 3 Alert Grids */}
-      <div className="mt-2 shrink-0">
+      <div className="mt-1 shrink-0">
         <h2 className="text-xl font-bold text-red-600 mb-4">Uyarı</h2>
         <div className="grid grid-cols-3 gap-6">
         <AlertTableCard
@@ -211,7 +212,7 @@ export default function Dashboard() {
 
 function AlertTableCard({ title, data, extraColLabel, renderExtra }) {
   return (
-    <div className="border border-gray-300 p-4 bg-white flex flex-col h-80">
+    <div className="panel p-4 flex flex-col h-80">
       <h3 className="text-lg font-semibold mb-4 text-center text-gray-800">
         {title}
       </h3>
@@ -227,12 +228,14 @@ function AlertTableCard({ title, data, extraColLabel, renderExtra }) {
           </thead>
           <tbody>
             {(data && data.length > 0) ? data.map((item, i) => (
-              <tr key={i} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
+              <tr key={i} className="border-b border-gray-200 last:border-0 hover:bg-gray-50">
                 <td className="py-2 px-2">
-                  {item.resim_url
-                    ? <img src={item.resim_url} alt="" className="w-8 h-8 object-contain" />
-                    : <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center text-[10px]">img</div>
-                  }
+                  <ProductThumb
+                    src={item.resim_url}
+                    alt={item.stok_kodu || 'Urun'}
+                    wrapperClassName="w-8 h-8"
+                    className="w-8 h-8 object-contain"
+                  />
                 </td>
                 <td className="py-2 px-2">{item.stok_kodu}</td>
                 <td className="py-2 px-2">{item.marka_adi}</td>
@@ -251,3 +254,4 @@ function AlertTableCard({ title, data, extraColLabel, renderExtra }) {
     </div>
   );
 }
+

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import api from '../api';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import BrandLogo from '../components/BrandLogo';
 
 export default function Login() {
   const [eposta, setEposta]     = useState('');
@@ -29,24 +30,20 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-brand-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-red-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-200 mb-4">
-            <span className="text-white text-2xl font-bold">S</span>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900">Sporthink</h1>
-          <p className="text-slate-500 text-sm mt-1">Dinamik Fiyatlama Sistemi</p>
+          <BrandLogo size="md" showWordmark className="flex-col gap-4" />
         </div>
 
         {/* Card */}
         <div className="card p-8">
-          <h2 className="text-lg font-semibold text-slate-900 mb-6">Sisteme Giriş Yap</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">Sisteme Giriş Yap</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="form-label mb-1.5">
                 E-posta
               </label>
               <input
@@ -55,12 +52,12 @@ export default function Login() {
                 onChange={(e) => setEposta(e.target.value)}
                 placeholder="ornek@sporthink.com.tr"
                 required
-                className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent transition"
+                className="form-input"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="form-label mb-1.5">
                 Şifre
               </label>
               <div className="relative">
@@ -70,12 +67,12 @@ export default function Login() {
                   onChange={(e) => setSifre(e.target.value)}
                   placeholder="••••••••"
                   required
-                  className="w-full px-3.5 py-2.5 pr-10 rounded-lg border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent transition"
+                  className="form-input pr-10"
                 />
                 <button
                   type="button"
                   onClick={() => setGoster(!goster)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   {goster ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -94,13 +91,14 @@ export default function Login() {
             </button>
           </form>
 
-          <div className="mt-6 pt-4 border-t border-slate-100 space-y-1">
-            <p className="text-xs text-slate-400 text-center font-medium">Demo Giriş</p>
-            <p className="text-xs text-slate-400 text-center">ahmet@sporthink.com.tr</p>
-            <p className="text-xs text-slate-400 text-center">Şifre: <code className="bg-slate-100 px-1 rounded">password</code></p>
+          <div className="mt-6 pt-4 border-t border-gray-200 space-y-1">
+            <p className="text-xs text-gray-500 text-center font-medium">Demo Giriş</p>
+            <p className="text-xs text-gray-500 text-center">ahmet@sporthink.com.tr</p>
+            <p className="text-xs text-gray-500 text-center">Şifre: <code className="bg-gray-100 px-1 rounded">password</code></p>
           </div>
         </div>
       </div>
     </div>
   );
 }
+

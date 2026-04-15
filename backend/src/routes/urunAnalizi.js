@@ -92,10 +92,13 @@ module.exports = async function (fastify, opts) {
         }
       }
 
+      const maliyetNum = parseFloat(item.maliyet || 0);
+      const onerilenFiyatNum = parseFloat(item.onerilenFiyat || 0);
+
       // Karlılık İhlali: If recommended price is less than cost
       let karlilikIhlali = 'Yok';
-      if (item.onerilenFiyat && item.maliyet) {
-        if (item.onerilenFiyat < item.maliyet) {
+      if (onerilenFiyatNum > 0 && maliyetNum > 0) {
+        if (onerilenFiyatNum < maliyetNum) {
           karlilikIhlali = 'Var';
         }
       }
@@ -108,12 +111,12 @@ module.exports = async function (fastify, opts) {
 
       return {
         stokKodu: item.stokKodu,
-        maliyet: parseFloat(item.maliyet || 0),
+        maliyet: maliyetNum,
         listeFiyat: parseFloat(item.listeFiyat || 0),
         indirimliFiyat: parseFloat(item.indirimliFiyat || 0),
         rakipFiyatOrtalamasi: parseFloat(item.rakipFiyatOrtalamasi || 0),
         karOrani: karOrani,
-        onerilenFiyat: parseFloat(item.onerilenFiyat || 0),
+        onerilenFiyat: onerilenFiyatNum,
         guncellemeSaati: formattedDate,
         fotograf: item.fotograf,
         marka: item.marka,
@@ -124,6 +127,26 @@ module.exports = async function (fastify, opts) {
       };
     });
 
+    // Logical order for actionability:
+    // 1) Profitability violations first
+    // 2) Biggest price disadvantage vs competitor average
+    // 3) Then stable by stock code
+    const sortedFormattedList = [...formattedList].sort((a, b) => {
+      const ihlalRankA = a.karlilikIhlali === 'Var' ? 0 : 1;
+      const ihlalRankB = b.karlilikIhlali === 'Var' ? 0 : 1;
+      if (ihlalRankA !== ihlalRankB) return ihlalRankA - ihlalRankB;
+
+      const aDisadvantage = a.rakipFiyatOrtalamasi > 0
+        ? ((a.indirimliFiyat - a.rakipFiyatOrtalamasi) / a.rakipFiyatOrtalamasi) * 100
+        : -Infinity;
+      const bDisadvantage = b.rakipFiyatOrtalamasi > 0
+        ? ((b.indirimliFiyat - b.rakipFiyatOrtalamasi) / b.rakipFiyatOrtalamasi) * 100
+        : -Infinity;
+      if (aDisadvantage !== bDisadvantage) return bDisadvantage - aDisadvantage;
+
+      return String(a.stokKodu || '').localeCompare(String(b.stokKodu || ''), 'tr');
+    });
+
     return {
       kpis: {
         toplam_urun,
@@ -131,18 +154,32 @@ module.exports = async function (fastify, opts) {
         fiyat_dezavantajli_urun,
         kritik_farki_olan_urunler
       },
-      urunler: formattedList
+      urunler: sortedFormattedList
     };
   });
 
   fastify.get('/:stokKodu/detay', { preHandler: [fastify.authenticate] }, async (request, reply) => {
-    const { stokKodu } = request.params;
+    const rawStokKodu = request.params.stokKodu;
+    let stokKodu = rawStokKodu;
+    try {
+      stokKodu = decodeURIComponent(rawStokKodu);
+    } catch (e) {
+      stokKodu = rawStokKodu;
+    }
     
     // Find the product and basic info
     const urunler = await sequelize.query(`
       SELECT 
         u.urun_id, u.maliyet, k.kar_beklentisi,
         ku.web_indirim_fiyati as indirimliFiyat,
+        (
+          SELECT fo.oneri_id
+          FROM fiyat_onerileri fo
+          WHERE fo.kanal_urun_id = ku.kanal_urun_id
+            AND fo.durum = 'beklemede'
+          ORDER BY fo.olusturma_tarihi DESC
+          LIMIT 1
+        ) as oneriId,
         (
           SELECT fo.onerilen_fiyat 
           FROM fiyat_onerileri fo 
@@ -171,7 +208,7 @@ module.exports = async function (fastify, opts) {
     const rakipSql = await sequelize.query(`
       SELECT 
         r.rakip_adi as satici, r.rakip_url as link, 
-        MAX(rf.fiyat) as fiyat, MAX(rf.guncelleme_tarihi) as guncelleme_tarihi,
+        MAX(rf.fiyat) as fiyat, MAX(rf.veri_kazima_zamani) as guncelleme_tarihi,
         COUNT(rf.beden_id) as dbAktifBeden
       FROM rakip_fiyatlar rf
       JOIN rakipler r ON rf.rakip_id = r.rakip_id
@@ -238,6 +275,7 @@ module.exports = async function (fastify, opts) {
     }
 
     return {
+      oneriId: urun.oneriId ? parseInt(urun.oneriId, 10) : null,
       fiyatGecmisi,
       algoritmaDetayi: {
         maliyet,

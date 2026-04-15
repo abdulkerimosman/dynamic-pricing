@@ -98,7 +98,14 @@ module.exports = async function (fastify, opts) {
 
   // Komisyon Analizleri Data
   fastify.get('/komisyon/:kanalId/:stokKodu', { preHandler: [fastify.authenticate] }, async (request, reply) => {
-    const { kanalId, stokKodu } = request.params;
+    const { kanalId } = request.params;
+    const rawStokKodu = request.params.stokKodu;
+    let stokKodu = rawStokKodu;
+    try {
+      stokKodu = decodeURIComponent(rawStokKodu);
+    } catch (e) {
+      stokKodu = rawStokKodu;
+    }
 
     const urunSql = await sequelize.query(`
       SELECT 

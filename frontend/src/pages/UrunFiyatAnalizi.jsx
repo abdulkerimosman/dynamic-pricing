@@ -1,14 +1,15 @@
 import { useState, Fragment } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Search, Filter, Eye, Loader2, FileSpreadsheet, ExternalLink, CheckCircle } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import api from '../api';
+import ProductThumb from '../components/ProductThumb';
 
 function StatCard({ value, title }) {
   return (
-    <div className="border border-gray-300 p-6 bg-white min-w-[200px] flex-1">
-      <div className="text-3xl font-bold text-gray-800 mb-2">{value}</div>
-      <div className="text-gray-600 text-sm">{title}</div>
+    <div className="panel p-5 min-w-[220px] flex-1">
+      <div className="text-xs font-semibold tracking-wide uppercase text-gray-500 mb-2">{title}</div>
+      <div className="text-3xl font-semibold text-gray-900">{value}</div>
     </div>
   );
 }
@@ -17,26 +18,27 @@ function UrunDetayRow({ urun }) {
   const queryClient = useQueryClient();
   const [approved, setApproved] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['urun-detay', urun.stokKodu],
-    queryFn: () => api.get(`/urun-analizi/${urun.stokKodu}/detay`).then(r => r.data),
+    queryFn: () => api.get(`/urun-analizi/${encodeURIComponent(urun.stokKodu)}/detay`).then(r => r.data),
   });
 
   if (isLoading) {
     return (
       <tr>
-        <td colSpan={15} className="py-10 bg-gray-50 border-b border-gray-200">
+        <td colSpan={15} className="py-10 bg-white border-b border-gray-200">
           <Loader2 className="animate-spin text-gray-400 mx-auto" size={24} />
         </td>
       </tr>
     );
   }
 
-  if (!data) {
+  if (isError || !data) {
+    const errorMessage = error?.response?.data?.error || error?.message || 'Sunucu hatası veya veri eksik';
     return (
       <tr>
         <td colSpan={15} className="py-10 bg-red-50 text-center text-red-500 border-b border-red-200">
-          Detay verisi yüklenemedi. (Sunucu hatası veya veri eksik)
+          Detay verisi yüklenemedi. ({errorMessage})
         </td>
       </tr>
     );
@@ -46,7 +48,7 @@ function UrunDetayRow({ urun }) {
   const alg = algoritmaDetayi || {};
 
   return (
-    <tr className="bg-gray-50 border-b border-gray-300">
+    <tr className="bg-white border-b border-gray-200">
       <td colSpan={15} className="p-0">
         <div className="p-8 animate-in slide-in-from-top-2 duration-300">
           
@@ -57,15 +59,14 @@ function UrunDetayRow({ urun }) {
                 Stok Kodu - {urun.stokKodu}
               </h2>
               
-              <div className="w-full max-w-[300px] aspect-video flex items-center justify-center">
-                {urun.fotograf ? (
-                  <img src={urun.fotograf} alt={urun.stokKodu} className="max-w-full max-h-full object-contain" />
-                ) : (
-                  <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-400">Ürün Görseli</div>
-                )}
-              </div>
+              <ProductThumb
+                src={urun.fotograf}
+                alt={urun.stokKodu}
+                wrapperClassName="w-full max-w-[300px] aspect-video flex items-center justify-center"
+                className="max-w-full max-h-full object-contain"
+              />
               
-              <div className="bg-red-200/50 text-red-900 px-6 py-3 rounded text-2xl font-medium inline-block shadow-sm">
+              <div className="bg-red-50 text-red-700 px-6 py-3 rounded text-2xl font-semibold inline-block border border-red-200">
                 Önerilen Fiyat - {alg.onerilenFiyat}
               </div>
 
@@ -84,7 +85,7 @@ function UrunDetayRow({ urun }) {
                   <p>Nihai Fiyat = {alg.onerilenFiyat} × {alg.talepKatsayisi} × {alg.stokKatsayisi}</p>
                 </div>
                 
-                <div className="flex items-center gap-4 mt-6 p-4 bg-gray-50 rounded border border-gray-100 justify-center">
+                <div className="flex items-center gap-4 mt-6 p-4 bg-white rounded border border-gray-200 justify-center">
                   <div className="w-24 h-24 bg-red-100/50 flex items-center justify-center rounded border border-red-200 flex-col">
                     <span className="text-xl font-semibold text-red-700">%{(alg.eskiKarlilik || 0).toFixed(0)}</span>
                     <span className="text-[10px] text-red-600 mt-1 uppercase">Eski Kârlılık</span>
@@ -110,7 +111,7 @@ function UrunDetayRow({ urun }) {
                     <XAxis dataKey="date" stroke="#9CA3AF" tick={{fontSize: 10}} tickMargin={10} />
                     <YAxis stroke="#9CA3AF" tick={{fontSize: 10}} domain={['dataMin - 10', 'dataMax + 10']} />
                     <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                    <Line type="monotone" dataKey="fiyat" stroke="#8B5CF6" strokeWidth={2} dot={{r: 3, fill: '#8B5CF6'}} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="fiyat" stroke="#EF3B36" strokeWidth={2.5} dot={{r: 3, fill: '#EF3B36'}} activeDot={{ r: 5 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -118,34 +119,34 @@ function UrunDetayRow({ urun }) {
               {/* Rakipler Beden Tablosu */}
               <div className="bg-white border text-sm border-gray-200 rounded overflow-hidden">
                 <table className="w-full whitespace-nowrap text-left border-collapse">
-                  <thead className="bg-gray-50 border-b border-gray-200 text-gray-700 text-xs">
+                  <thead className="bg-white border-b border-gray-200 text-gray-700 text-xs">
                     <tr>
-                      <th className="px-4 py-2 font-medium border-r border-gray-100">Satıcı</th>
-                      <th className="px-4 py-2 font-medium border-r border-gray-100">Fiyat</th>
-                      <th className="px-4 py-2 font-medium border-r border-gray-100">Aktif Beden</th>
-                      <th className="px-4 py-2 font-medium border-r border-gray-100">Pasif Beden</th>
-                      <th className="px-4 py-2 font-medium border-r border-gray-100">Beden Oranı</th>
-                      <th className="px-4 py-2 font-medium border-r border-gray-100">Favori Beden</th>
-                      <th className="px-4 py-2 font-medium border-r border-gray-100">Güncelleme</th>
+                      <th className="px-4 py-2 font-medium border-r border-gray-200">Satıcı</th>
+                      <th className="px-4 py-2 font-medium border-r border-gray-200">Fiyat</th>
+                      <th className="px-4 py-2 font-medium border-r border-gray-200">Aktif Beden</th>
+                      <th className="px-4 py-2 font-medium border-r border-gray-200">Pasif Beden</th>
+                      <th className="px-4 py-2 font-medium border-r border-gray-200">Beden Oranı</th>
+                      <th className="px-4 py-2 font-medium border-r border-gray-200">Favori Beden</th>
+                      <th className="px-4 py-2 font-medium border-r border-gray-200">Güncelleme</th>
                       <th className="px-4 py-2 font-medium text-center">Link</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rakipler?.map((r, idx) => (
-                      <tr key={idx} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                        <td className="px-4 py-2 border-r border-gray-100">{r.satici}</td>
-                        <td className="px-4 py-2 border-r border-gray-100">{r.fiyat}</td>
-                        <td className="px-4 py-2 border-r border-gray-100">{r.aktifBeden}</td>
-                        <td className="px-4 py-2 border-r border-gray-100">{r.pasifBeden}</td>
-                        <td className="px-4 py-2 border-r border-gray-100 w-32">
+                      <tr key={idx} className="border-b border-gray-200 last:border-0 hover:bg-white">
+                        <td className="px-4 py-2 border-r border-gray-200">{r.satici}</td>
+                        <td className="px-4 py-2 border-r border-gray-200">{r.fiyat}</td>
+                        <td className="px-4 py-2 border-r border-gray-200">{r.aktifBeden}</td>
+                        <td className="px-4 py-2 border-r border-gray-200">{r.pasifBeden}</td>
+                        <td className="px-4 py-2 border-r border-gray-200 w-32">
                           <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden flex">
                             <div className={`h-full ${r.bedenOrani >= 70 ? 'bg-green-500' : 'bg-red-500'}`} style={{ width: `${r.bedenOrani}%` }}></div>
                           </div>
                         </td>
-                        <td className="px-4 py-2 border-r border-gray-100">{r.favoriBeden}</td>
-                        <td className="px-4 py-2 border-r border-gray-100 text-[10px] text-gray-500">{r.guncelleme}</td>
+                        <td className="px-4 py-2 border-r border-gray-200">{r.favoriBeden}</td>
+                        <td className="px-4 py-2 border-r border-gray-200 text-[10px] text-gray-500">{r.guncelleme}</td>
                         <td className="px-4 py-2 text-center">
-                          <a href={r.link} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-blue-500 inline-block">
+                          <a href={r.link} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-brand-500 inline-block">
                             <ExternalLink size={16} />
                           </a>
                         </td>
@@ -165,6 +166,7 @@ function UrunDetayRow({ urun }) {
                 ) : (
                   <button
                     disabled={!data?.oneriId}
+                    title={!data?.oneriId ? 'Bu ürün için beklemede fiyat önerisi bulunamadı.' : 'Önerilen fiyatı onayla'}
                     onClick={async () => {
                       if (!data?.oneriId) return;
                       try {
@@ -176,7 +178,7 @@ function UrunDetayRow({ urun }) {
                         alert('Onaylama başarısız: ' + (e?.response?.data?.error || e.message));
                       }
                     }}
-                    className="bg-[#FF6B59] hover:bg-[#ff5540] disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-10 py-3 rounded shadow-sm font-medium transition-colors"
+                    className="btn-primary disabled:bg-gray-300 disabled:cursor-not-allowed px-10 py-3"
                   >
                     Onayla
                   </button>
@@ -210,11 +212,12 @@ export default function UrunFiyatAnalizi() {
   ) : urunler;
 
   return (
-    <div className="space-y-8 max-w-[1400px]">
+    <div className="page-shell w-full max-w-none">
       
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-semibold text-gray-900 mb-6">Ürün Fiyat Analizi</h1>
+        <h1 className="page-title">Ürün Fiyat Analizi</h1>
+        <p className="page-subtitle">Önerilen fiyatları gözden geçirin, karşılaştırın ve onaylayın</p>
       </div>
 
       {/* KPI Row */}
@@ -226,8 +229,8 @@ export default function UrunFiyatAnalizi() {
       </div>
 
       {/* Action Bar */}
-      <div className="flex items-center justify-end gap-3 mt-4">
-        <button className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded shadow-sm text-sm font-medium transition-colors">
+      <div className="flex items-center justify-end gap-3 mt-2">
+        <button className="btn-secondary">
           <FileSpreadsheet size={16} />
           Excel'e Aktar
         </button>
@@ -238,38 +241,55 @@ export default function UrunFiyatAnalizi() {
             placeholder="Stok kodu ara" 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full border border-gray-300 rounded-full px-4 py-1.5 text-sm outline-none focus:border-gray-400"
+            className="form-input rounded-lg pr-10"
           />
           <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
         </div>
         
-        <button className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded border border-transparent font-medium">
+        <button className="btn-secondary px-3 py-2">
           <Filter size={16} />
           Filter
         </button>
       </div>
 
       {/* Table */}
-      <div className="border border-gray-300 bg-white overflow-hidden text-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full whitespace-nowrap text-left border-collapse">
-            <thead className="bg-gray-50 border-b border-gray-300 text-gray-700">
+      <div className="table-shell text-sm">
+        <div className="overflow-x-hidden">
+          <table className="w-full table-fixed text-left border-collapse">
+            <colgroup>
+              <col className="w-[8%]" />
+              <col className="w-[7%]" />
+              <col className="w-[7%]" />
+              <col className="w-[6%]" />
+              <col className="w-[6%]" />
+              <col className="w-[7%]" />
+              <col className="w-[7%]" />
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
+              <col className="w-[7%]" />
+              <col className="w-[6%]" />
+              <col className="w-[7%]" />
+              <col className="w-[7%]" />
+              <col className="w-[5%]" />
+              <col className="w-[4%]" />
+            </colgroup>
+            <thead className="table-head">
               <tr>
-                <th className="px-4 py-3 font-semibold border-r border-gray-200">Stok Kodu</th>
-                <th className="px-4 py-3 font-semibold border-r border-gray-200">Maliyet</th>
-                <th className="px-4 py-3 font-semibold border-r border-gray-200">Liste Fiyat</th>
-                <th className="px-4 py-3 font-semibold border-r border-gray-200">İndirimli Fiyat</th>
-                <th className="px-4 py-3 font-semibold border-r border-gray-200">Rakip Fiyat Ortalaması</th>
-                <th className="px-4 py-3 font-semibold border-r border-gray-200">Kâr Oranı</th>
-                <th className="px-4 py-3 font-semibold border-r border-gray-200">Önerilen Fiyat</th>
-                <th className="px-4 py-3 font-semibold border-r border-gray-200">Güncelleme Saati</th>
-                <th className="px-4 py-3 font-semibold border-r border-gray-200 text-center">Detay</th>
-                <th className="px-4 py-3 font-semibold border-r border-gray-200">Fotoğraf</th>
-                <th className="px-4 py-3 font-semibold border-r border-gray-200">Marka</th>
-                <th className="px-4 py-3 font-semibold border-r border-gray-200">Toplam Stok</th>
-                <th className="px-4 py-3 font-semibold border-r border-gray-200">En Ucuz Satıcı</th>
-                <th className="px-4 py-3 font-semibold border-r border-gray-200">Kategori</th>
-                <th className="px-4 py-3 font-semibold border-r border-gray-200">Karlılık İhlali</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Stok Kodu</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Marka</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Kategori</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Toplam Stok</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Maliyet</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Liste Fiyat</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">İndirimli Fiyat</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Rakip Fiyat Ortalaması</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">En Ucuz Satıcı</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Önerilen Fiyat</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Kâr Oranı</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Karlılık İhlali</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Güncelleme Saati</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Fotoğraf</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 text-center break-words">Detay</th>
               </tr>
             </thead>
             <tbody>
@@ -282,16 +302,29 @@ export default function UrunFiyatAnalizi() {
               ) : filteredUrunler.length > 0 ? (
                 filteredUrunler.map((u, i) => (
                   <Fragment key={u.stokKodu || i}>
-                    <tr className={`border-b border-gray-200 hover:bg-gray-50 text-gray-700 ${expandedRow === u.stokKodu ? 'bg-gray-50' : ''}`}>
-                      <td className="px-4 py-3 border-r border-gray-200">{u.stokKodu}</td>
-                    <td className="px-4 py-3 border-r border-gray-200">{u.maliyet > 0 ? u.maliyet : '-'}</td>
-                    <td className="px-4 py-3 border-r border-gray-200">{u.listeFiyat > 0 ? u.listeFiyat : '-'}</td>
-                    <td className="px-4 py-3 border-r border-gray-200">{u.indirimliFiyat > 0 ? u.indirimliFiyat : '-'}</td>
-                    <td className="px-4 py-3 border-r border-gray-200">{u.rakipFiyatOrtalamasi > 0 ? Math.round(u.rakipFiyatOrtalamasi) : '-'}</td>
-                    <td className="px-4 py-3 border-r border-gray-200">{u.karOrani > 0 ? `%${Math.round(u.karOrani)}` : '-'}</td>
-                    <td className="px-4 py-3 border-r border-gray-200">{u.onerilenFiyat > 0 ? u.onerilenFiyat : '-'}</td>
-                    <td className="px-4 py-3 border-r border-gray-200">{u.guncellemeSaati}</td>
-                    <td className="px-4 py-3 border-r border-gray-200 text-center">
+                    <tr className={`table-row ${expandedRow === u.stokKodu ? 'bg-gray-50' : ''}`}>
+                      <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-all">{u.stokKodu}</td>
+                    <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.marka}</td>
+                    <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.kategori}</td>
+                    <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.toplamStok}</td>
+                    <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.maliyet > 0 ? u.maliyet : '-'}</td>
+                    <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.listeFiyat > 0 ? u.listeFiyat : '-'}</td>
+                    <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.indirimliFiyat > 0 ? u.indirimliFiyat : '-'}</td>
+                    <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.rakipFiyatOrtalamasi > 0 ? Math.round(u.rakipFiyatOrtalamasi) : '-'}</td>
+                    <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.enUcuzSatici}</td>
+                    <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.onerilenFiyat > 0 ? u.onerilenFiyat : '-'}</td>
+                    <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.karOrani > 0 ? `%${Math.round(u.karOrani)}` : '-'}</td>
+                    <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.karlilikIhlali}</td>
+                    <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.guncellemeSaati}</td>
+                    <td className="px-2 py-2 text-xs align-top border-r border-gray-200">
+                      <ProductThumb
+                        src={u.fotograf}
+                        alt={u.stokKodu || 'Urun'}
+                        wrapperClassName="w-8 h-8 mx-auto flex items-center justify-center"
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    </td>
+                    <td className="px-2 py-2 text-xs align-top border-r border-gray-200 text-center">
                       <button 
                         onClick={() => setExpandedRow(expandedRow === u.stokKodu ? null : u.stokKodu)}
                         className="text-gray-500 hover:text-black focus:outline-none"
@@ -299,20 +332,6 @@ export default function UrunFiyatAnalizi() {
                         <Eye size={18} />
                       </button>
                     </td>
-                    <td className="px-4 py-3 border-r border-gray-200">
-                      {u.fotograf ? (
-                        <div className="w-8 h-8 mx-auto flex items-center justify-center">
-                          <img src={u.fotograf} alt="" className="max-w-full max-h-full object-contain" />
-                        </div>
-                      ) : (
-                        <div className="w-8 h-8 bg-gray-200 mx-auto flex items-center justify-center text-[10px] text-gray-400">İmage</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 border-r border-gray-200">{u.marka}</td>
-                    <td className="px-4 py-3 border-r border-gray-200">{u.toplamStok}</td>
-                    <td className="px-4 py-3 border-r border-gray-200">{u.enUcuzSatici}</td>
-                    <td className="px-4 py-3 border-r border-gray-200">{u.kategori}</td>
-                    <td className="px-4 py-3 border-r border-gray-200">{u.karlilikIhlali}</td>
                   </tr>
                   {expandedRow === u.stokKodu && <UrunDetayRow urun={u} />}
                 </Fragment>
@@ -330,3 +349,4 @@ export default function UrunFiyatAnalizi() {
     </div>
   );
 }
+

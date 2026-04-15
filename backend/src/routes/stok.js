@@ -99,6 +99,14 @@ module.exports = async function stokRoutes(fastify) {
 
   // GET /api/stok/:stokKodu/zaman-serisi
   fastify.get('/:stokKodu/zaman-serisi', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const rawStokKodu = request.params.stokKodu;
+    let stokKodu = rawStokKodu;
+    try {
+      stokKodu = decodeURIComponent(rawStokKodu);
+    } catch (e) {
+      stokKodu = rawStokKodu;
+    }
+
     const data = [];
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     

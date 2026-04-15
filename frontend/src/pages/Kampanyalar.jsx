@@ -28,11 +28,11 @@ export default function Kampanyalar() {
   };
 
   return (
-    <div className="space-y-5 max-w-screen-xl">
+    <div className="page-shell max-w-screen-xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Kampanya Planlama</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Pazaryeri kampanya takvimi ve karlılık hedefleri</p>
+          <h1 className="page-title">Kampanya Planlama</h1>
+          <p className="page-subtitle">Pazaryeri kampanya takvimi ve karlılık hedefleri</p>
         </div>
         <button onClick={() => setForm({ kampanya_adi: '', kanal_id: '', baslangic_tarihi: '', bitis_tarihi: '', hedef_indirim_orani: '', hedef_karlilik: '' })}
           className="btn-primary">
@@ -42,8 +42,8 @@ export default function Kampanyalar() {
 
       {/* New Campaign Form */}
       {form && (
-        <div className="card p-5 space-y-4">
-          <h3 className="font-semibold text-slate-900">Yeni Kampanya Oluştur</h3>
+        <div className="panel p-5 space-y-4">
+          <h3 className="font-semibold text-gray-900">Yeni Kampanya Oluştur</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {[
               { label: 'Kampanya Adı', key: 'kampanya_adi', type: 'text' },
@@ -53,15 +53,15 @@ export default function Kampanyalar() {
               { label: 'Hedef Karlılık (%)', key: 'hedef_karlilik', type: 'number', step: '0.01' },
             ].map(f => (
               <div key={f.key}>
-                <label className="block text-xs font-medium text-slate-600 mb-1">{f.label}</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">{f.label}</label>
                 <input type={f.type} step={f.step} value={form[f.key] ?? ''} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-600" />
+                  className="form-input" />
               </div>
             ))}
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Kanal</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Kanal</label>
               <select value={form.kanal_id} onChange={e => setForm(p => ({ ...p, kanal_id: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-600">
+                className="form-input">
                 <option value="">Seçiniz</option>
                 {kanallar.map(k => <option key={k.kanal_id} value={k.kanal_id}>{k.kanal_adi}</option>)}
               </select>
@@ -78,33 +78,33 @@ export default function Kampanyalar() {
 
       {/* Campaign Cards */}
       {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-slate-400" /></div>
+        <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-gray-400" /></div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {kampanyalar.map((k) => (
-            <div key={k.kampanya_id} className="card p-5 space-y-3">
+            <div key={k.kampanya_id} className="panel p-5 space-y-3">
               <div className="flex items-start justify-between gap-2">
-                <h3 className="font-semibold text-slate-900 text-sm leading-tight">{k.kampanya_adi}</h3>
+                <h3 className="font-semibold text-gray-900 text-sm leading-tight">{k.kampanya_adi}</h3>
                 <span className="badge-slate shrink-0">{k.Kanal?.kanal_adi}</span>
               </div>
-              <div className="flex items-center gap-1.5 text-xs text-slate-500">
+              <div className="flex items-center gap-1.5 text-xs text-gray-600">
                 <CalendarRange size={13} />
                 {k.baslangic_tarihi} → {k.bitis_tarihi}
               </div>
-              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-200">
                 <div>
-                  <p className="text-xs text-slate-400">Hedef İndirim</p>
-                  <p className="text-sm font-bold text-brand-600">%{(parseFloat(k.hedef_indirim_orani) * 100).toFixed(0)}</p>
+                  <p className="text-xs text-gray-500">Hedef İndirim</p>
+                  <p className="text-sm font-bold text-brand-500">%{(parseFloat(k.hedef_indirim_orani) * 100).toFixed(0)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400">Hedef Karlılık</p>
+                  <p className="text-xs text-gray-500">Hedef Karlılık</p>
                   <p className="text-sm font-bold text-emerald-600">%{(parseFloat(k.hedef_karlilik) * 100).toFixed(0)}</p>
                 </div>
               </div>
             </div>
           ))}
           {kampanyalar.length === 0 && (
-            <div className="col-span-3 text-center text-slate-400 py-12">
+            <div className="col-span-3 text-center text-gray-500 py-12">
               Henüz kampanya oluşturulmamış
             </div>
           )}
@@ -113,3 +113,4 @@ export default function Kampanyalar() {
     </div>
   );
 }
+

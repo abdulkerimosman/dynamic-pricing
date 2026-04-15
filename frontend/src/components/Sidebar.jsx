@@ -4,6 +4,7 @@ import {
   Package, Settings,
 } from 'lucide-react';
 import clsx from 'clsx';
+import BrandLogo from './BrandLogo';
 
 const NAV_ITEMS = [
   { to: '/',            icon: LayoutDashboard, label: 'Dashboard' },
@@ -15,15 +16,13 @@ const NAV_ITEMS = [
 
 export default function Sidebar() {
   return (
-    <aside className="w-60 shrink-0 bg-white border-r border-slate-200 flex flex-col">
+    <aside className="w-60 shrink-0 bg-white border-r border-gray-200 flex flex-col">
       {/* Brand */}
-      <div className="h-16 flex items-center gap-2.5 px-5 border-b border-slate-100">
-        <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
-          <span className="text-white text-sm font-bold">S</span>
-        </div>
+      <div className="h-16 flex items-center gap-2.5 px-5 border-b border-gray-200">
+        <BrandLogo size="sm" />
         <div>
-          <p className="text-sm font-bold text-slate-900 leading-none">Sporthink</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">Fiyatlama Sistemi</p>
+          <p className="text-sm font-bold text-gray-900 leading-none">Sporthink</p>
+          <p className="text-[10px] text-gray-500 mt-0.5">Fiyatlama Sistemi</p>
         </div>
       </div>
 
@@ -38,8 +37,8 @@ export default function Sidebar() {
               clsx(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
                 isActive
-                  ? 'bg-brand-50 text-brand-600'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  ? 'bg-gray-100 text-brand-500 border-l-2 border-brand-500'
+                  : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
               )
             }
           >
@@ -50,9 +49,10 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-3 border-t border-slate-100 text-xs text-slate-400">
+      <div className="px-4 py-3 border-t border-gray-200 text-xs text-gray-500">
         v1.0.0 — {new Date().getFullYear()}
       </div>
     </aside>
   );
 }
+

@@ -3,15 +3,16 @@ import { useQuery } from '@tanstack/react-query';
 import { Search, Filter, Eye, Loader2, FileSpreadsheet } from 'lucide-react';
 import { ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import api from '../api';
+import ProductThumb from '../components/ProductThumb';
 
 function StokDetayRow({ urun }) {
   const { data, isLoading } = useQuery({
     queryKey: ['stok-zaman-serisi', urun.stokKodu],
-    queryFn: () => api.get(`/stok/${urun.stokKodu}/zaman-serisi`).then(r => r.data)
+    queryFn: () => api.get(`/stok/${encodeURIComponent(urun.stokKodu)}/zaman-serisi`).then(r => r.data)
   });
 
   return (
-    <tr className="bg-gray-50 border-b border-gray-300">
+    <tr className="bg-white border-b border-gray-200">
       <td colSpan={12} className="p-0">
         <div className="p-8 animate-in slide-in-from-top-2 duration-300">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -25,11 +26,12 @@ function StokDetayRow({ urun }) {
               {/* Product Info Left */}
               <div className="flex flex-col items-center justify-center w-full md:w-1/3">
                 <h3 className="text-lg text-gray-800 mb-8 self-start font-medium">Stok Kodu - {urun.stokKodu}</h3>
-                {urun.fotograf ? (
-                  <img src={urun.fotograf} className="w-64 object-contain mix-blend-multiply drop-shadow-md" alt={urun.stokKodu} />
-                ) : (
-                  <div className="w-64 h-64 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400">Görsel Yok</div>
-                )}
+                <ProductThumb
+                  src={urun.fotograf}
+                  alt={urun.stokKodu}
+                  wrapperClassName="w-64 h-64 flex items-center justify-center"
+                  className="w-64 object-contain mix-blend-multiply drop-shadow-md"
+                />
               </div>
 
               {/* Time Series Graph Right */}
@@ -121,48 +123,50 @@ export default function Stok() {
   );
 
   return (
-    <div className="space-y-8 max-w-[1600px]">
+    <div className="page-shell w-full max-w-none">
       
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-semibold text-gray-900 mb-6">Stok ve Talep Analizi</h1>
+        <h1 className="page-title">Stok ve Talep Analizi</h1>
+        <p className="page-subtitle">Stok riski, satış hızı ve beden kırıklığına göre operasyon önceliklerini yönetin</p>
       </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white border text-center md:text-left border-gray-200 p-6 rounded shadow-sm">
-          <div className="text-4xl font-light text-gray-800 mb-1">
+        <div className="panel text-center md:text-left p-5">
+          <div className="text-xs font-semibold tracking-wide uppercase text-gray-500 mb-2">Sıfır Stok Ürünler</div>
+          <div className="text-4xl font-semibold text-gray-900 mb-1">
             {isLoading ? <Loader2 className="animate-spin inline" /> : kpis.sifirStokSayisi}
           </div>
-          <div className="text-sm text-gray-500 font-medium">Sıfır Stok Ürünler</div>
         </div>
         
-        <div className="bg-white border text-center md:text-left border-gray-200 p-6 rounded shadow-sm">
-          <div className="text-4xl font-light text-gray-800 mb-1">
+        <div className="panel text-center md:text-left p-5">
+          <div className="text-xs font-semibold tracking-wide uppercase text-gray-500 mb-2">Kritik Stok (&lt; 15 gün)</div>
+          <div className="text-4xl font-semibold text-gray-900 mb-1">
             {isLoading ? <Loader2 className="animate-spin inline" /> : kpis.kritikStokSayisi}
           </div>
-          <div className="text-sm text-gray-500 font-medium">Kritik Stok (&lt; 15 gün)</div>
         </div>
         
-        <div className="bg-white border text-center md:text-left border-gray-200 p-6 rounded shadow-sm">
-          <div className="text-4xl font-light text-gray-800 mb-1">
+        <div className="panel text-center md:text-left p-5">
+          <div className="text-xs font-semibold tracking-wide uppercase text-gray-500 mb-2">Stok Fazlası (&gt; 60 gün)</div>
+          <div className="text-4xl font-semibold text-gray-900 mb-1">
             {isLoading ? <Loader2 className="animate-spin inline" /> : kpis.stokFazlasiSayisi}
           </div>
-          <div className="text-sm text-gray-500 font-medium">Stok Fazlası (&gt; 60 gün)</div>
         </div>
         
-        <div className="bg-white border text-center md:text-left border-gray-200 p-6 rounded shadow-sm">
-          <div className="text-4xl font-light text-gray-800 mb-1">
+        <div className="panel text-center md:text-left p-5">
+          <div className="text-xs font-semibold tracking-wide uppercase text-gray-500 mb-2">Yüksek Beden Kırıklığı</div>
+          <div className="text-4xl font-semibold text-gray-900 mb-1">
             {isLoading ? <Loader2 className="animate-spin inline" /> : kpis.yuksekBedenKriklikSayisi}
           </div>
-          <div className="text-sm text-gray-500 font-medium">Yüksek Beden Kırıklığı Stok</div>
         </div>
       </div>
 
       {/* Action Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-end gap-4 mt-6">
-        <button className="flex items-center gap-2 text-white px-2 py-1 rounded transition-colors bg-white">
-          <FileSpreadsheet size={36} className="text-green-700 hover:text-green-800" />
+        <button className="btn-secondary">
+          <FileSpreadsheet size={16} />
+          Excel'e Aktar
         </button>
         
         <div className="relative w-64 md:w-80">
@@ -171,35 +175,49 @@ export default function Stok() {
             placeholder="Stok kodu ara" 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full border border-gray-300 rounded px-4 py-2 text-sm outline-none focus:border-gray-500"
+            className="form-input pr-10"
           />
           <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
         </div>
         
-        <button className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded border border-transparent font-medium border-gray-300">
+        <button className="btn-secondary">
           <Filter size={18} />
           Filter
         </button>
       </div>
 
       {/* Table */}
-      <div className="border border-gray-200 rounded-lg shadow-sm bg-white overflow-hidden text-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full whitespace-nowrap text-left border-collapse">
-            <thead className="bg-[#fafafa] border-b border-gray-200 text-gray-600">
+      <div className="table-shell text-sm">
+        <div className="overflow-x-hidden">
+          <table className="w-full table-fixed text-left border-collapse">
+            <colgroup>
+              <col className="w-[10%]" />
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
+              <col className="w-[9%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
+              <col className="w-[9%]" />
+              <col className="w-[10%]" />
+              <col className="w-[5%]" />
+              <col className="w-[5%]" />
+            </colgroup>
+            <thead className="table-head">
               <tr>
-                <th className="px-4 py-4 font-semibold border-r border-gray-100">Stok Kodu</th>
-                <th className="px-4 py-4 font-semibold border-r border-gray-100">Maliyet</th>
-                <th className="px-4 py-4 font-semibold border-r border-gray-100">Toplam Stok</th>
-                <th className="px-4 py-4 font-semibold border-r border-gray-100">Stok Gün</th>
-                <th className="px-4 py-4 font-semibold border-r border-gray-100">Satış Hız</th>
-                <th className="px-4 py-4 font-semibold border-r border-gray-100">Beden Kırıklığı Or.</th>
-                <th className="px-4 py-4 font-semibold border-r border-gray-100">Öneri</th>
-                <th className="px-4 py-4 font-semibold border-r border-gray-100">Güncelleme Saati</th>
-                <th className="px-4 py-4 font-semibold border-r border-gray-100 text-center">Detay</th>
-                <th className="px-4 py-4 font-semibold border-r border-gray-100 text-center">Fotoğraf</th>
-                <th className="px-4 py-4 font-semibold border-r border-gray-100">Marka</th>
-                <th className="px-4 py-4 font-semibold">Kategori</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Stok Kodu</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Marka</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Kategori</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Toplam Stok</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Stok Gün</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Satış Hız</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Beden Kırıklığı Or.</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Öneri</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Maliyet</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Güncelleme Saati</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 text-center break-words">Fotoğraf</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold text-center break-words">Detay</th>
               </tr>
             </thead>
             <tbody>
@@ -212,38 +230,37 @@ export default function Stok() {
               ) : filteredUrunler.length > 0 ? (
                 filteredUrunler.map((u, i) => (
                   <Fragment key={u.stokKodu || i}>
-                    <tr className={`border-b border-gray-100 hover:bg-gray-50 text-gray-700 transition-colors ${expandedRow === u.stokKodu ? 'bg-gray-50' : ''}`}>
-                      <td className="px-4 py-4 border-r border-gray-100 font-medium">{u.stokKodu}</td>
-                      <td className="px-4 py-4 border-r border-gray-100">{u.maliyet > 0 ? Math.round(u.maliyet) : '-'}</td>
-                      <td className="px-4 py-4 border-r border-gray-100">{u.toplamStok}</td>
-                      <td className="px-4 py-4 border-r border-gray-100">{u.stokGun}</td>
-                      <td className="px-4 py-4 border-r border-gray-100">{u.satisHiz}</td>
-                      <td className="px-4 py-4 border-r border-gray-100">{u.bedenKiriklikOrani > 0 ? `%${u.bedenKiriklikOrani}` : '-'}</td>
-                      <td className="px-4 py-4 border-r border-gray-100">
+                    <tr className={`table-row ${expandedRow === u.stokKodu ? 'bg-gray-50' : ''}`}>
+                      <td className="px-2 py-2 text-xs align-top border-r border-gray-200 font-medium break-all">{u.stokKodu}</td>
+                      <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.marka || '-'}</td>
+                      <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.kategori || '-'}</td>
+                      <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.toplamStok}</td>
+                      <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.stokGun}</td>
+                      <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.satisHiz}</td>
+                      <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.bedenKiriklikOrani > 0 ? `%${u.bedenKiriklikOrani}` : '-'}</td>
+                      <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">
                         {u.oneri !== '-' ? <span className="bg-gray-100 px-2 py-1 rounded text-xs border border-gray-200">{u.oneri}</span> : '-'}
                       </td>
-                      <td className="px-4 py-4 border-r border-gray-100 text-xs text-gray-500">
+                      <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.maliyet > 0 ? Math.round(u.maliyet) : '-'}</td>
+                      <td className="px-2 py-2 text-xs align-top border-r border-gray-200 text-gray-500 break-words">
                         {u.guncellemeSaati ? new Date(u.guncellemeSaati).toLocaleString('tr-TR') : '-'}
                       </td>
-                      <td className="px-4 py-4 border-r border-gray-100 text-center">
+                      <td className="px-2 py-2 text-xs align-top border-r border-gray-200">
+                        <ProductThumb
+                          src={u.fotograf}
+                          alt={u.stokKodu || 'Urun'}
+                          wrapperClassName="w-10 h-10 mx-auto flex items-center justify-center"
+                          className="max-w-full max-h-full object-contain mix-blend-multiply"
+                        />
+                      </td>
+                      <td className="px-2 py-2 text-xs align-top text-center">
                         <button 
                           onClick={() => setExpandedRow(expandedRow === u.stokKodu ? null : u.stokKodu)}
                           className="text-gray-600 hover:text-black focus:outline-none transition-transform hover:scale-110"
                         >
-                          <Eye size={20} />
+                          <Eye size={18} />
                         </button>
                       </td>
-                      <td className="px-4 py-4 border-r border-gray-100">
-                        {u.fotograf ? (
-                          <div className="w-10 h-10 mx-auto flex items-center justify-center">
-                            <img src={u.fotograf} alt="" className="max-w-full max-h-full object-contain mix-blend-multiply" />
-                          </div>
-                        ) : (
-                          <div className="w-10 h-10 bg-gray-100 rounded mx-auto flex items-center justify-center text-[10px] text-gray-400">Yok</div>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 border-r border-gray-100">{u.marka || '-'}</td>
-                      <td className="px-4 py-4">{u.kategori || '-'}</td>
                     </tr>
                     {expandedRow === u.stokKodu && <StokDetayRow urun={u} />}
                   </Fragment>
@@ -260,3 +277,4 @@ export default function Stok() {
     </div>
   );
 }
+

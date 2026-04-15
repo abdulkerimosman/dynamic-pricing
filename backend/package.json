@@ -5,7 +5,8 @@
   "main": "src/app.js",
   "scripts": {
     "dev": "node --watch src/app.js",
-    "start": "node src/app.js"
+    "start": "node src/app.js",
+    "seed:showcase": "node seed_showcase.js"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",
