@@ -28,6 +28,21 @@ module.exports = async function (fastify, opts) {
         u.resim_url as fotograf,
         m.marka_adi as marka,
         k.kategori_adi as kategori,
+        (
+          SELECT GROUP_CONCAT(DISTINCT s.sezon_adi ORDER BY s.sezon_adi SEPARATOR ', ')
+          FROM kategori_sezon ks
+          JOIN sezonlar s ON s.sezon_id = ks.sezon_id
+          WHERE ks.kategori_id = u.kategori_id
+        ) as sezon,
+        COALESCE((
+          SELECT CASE
+            WHEN COUNT(*) > 1 THEN 'Unisex'
+            ELSE MAX(c.cinsiyet_adi)
+          END
+          FROM urun_cinsiyet uc
+          JOIN cinsiyetler c ON c.cinsiyet_id = uc.cinsiyet_id
+          WHERE uc.urun_id = u.urun_id
+        ), 'Unisex') as cinsiyet,
         (SELECT SUM(stok_miktari) FROM stok s WHERE s.urun_id = u.urun_id) as toplamStok,
         ku_web.web_liste_fiyati as webListeFiyat,
         ku_web.web_indirim_fiyati as webIndirimliFiyat,

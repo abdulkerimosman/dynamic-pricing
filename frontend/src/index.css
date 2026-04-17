@@ -45,6 +45,19 @@ body {
   .form-input { @apply w-full px-3.5 py-2.5 rounded-lg border border-gray-200 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition; }
   .form-label { @apply block text-sm font-medium text-gray-800 mb-2; }
 
+  /* FILTER SELECTS */
+  .filter-field { @apply space-y-2; }
+  .filter-label { @apply block text-sm font-medium text-gray-700; }
+  .filter-select-wrap { @apply relative; }
+  .filter-select {
+    @apply w-full h-14 border-[3px] border-gray-400 rounded-md bg-white px-5 pr-14 text-lg text-gray-700 outline-none appearance-none transition;
+  }
+  .filter-select:focus { @apply border-gray-700; }
+  .filter-select:disabled { @apply bg-gray-100 text-gray-400 cursor-not-allowed; }
+  .filter-select-icon {
+    @apply pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-gray-900;
+  }
+
   /* PAGE LAYOUT */
   .page-shell { @apply space-y-8 max-w-[1500px]; }
   .page-title { @apply text-3xl font-semibold text-gray-900 tracking-tight; }

@@ -69,6 +69,17 @@ const Beden = sequelize.define('Beden', {
   beden_adi: { type: DataTypes.STRING(20), allowNull: false, unique: true },
 }, { tableName: 'beden', timestamps: false });
 
+const Cinsiyet = sequelize.define('Cinsiyet', {
+  cinsiyet_id:  { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  cinsiyet_adi: { type: DataTypes.STRING(30), allowNull: false, unique: true },
+}, { tableName: 'cinsiyetler', timestamps: false });
+
+const UrunCinsiyet = sequelize.define('UrunCinsiyet', {
+  urun_cinsiyet_id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  urun_id:          { type: DataTypes.INTEGER, allowNull: false },
+  cinsiyet_id:      { type: DataTypes.INTEGER, allowNull: false },
+}, { tableName: 'urun_cinsiyet', timestamps: false });
+
 const Urun = sequelize.define('Urun', {
   urun_id:           { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   barkod:            { type: DataTypes.STRING(50), unique: true },
@@ -235,6 +246,10 @@ Marka.hasMany(Urun,      { foreignKey: 'marka_id' });
 Kategori.belongsToMany(Sezon, { through: KategoriSezon, foreignKey: 'kategori_id' });
 Sezon.belongsToMany(Kategori, { through: KategoriSezon, foreignKey: 'sezon_id' });
 
+// Products ↔ Genders
+Urun.belongsToMany(Cinsiyet, { through: UrunCinsiyet, foreignKey: 'urun_id' });
+Cinsiyet.belongsToMany(Urun, { through: UrunCinsiyet, foreignKey: 'cinsiyet_id' });
+
 // Channel ↔ Product
 Kanal.hasMany(KanalUrun,    { foreignKey: 'kanal_id' });
 Urun.hasMany(KanalUrun,     { foreignKey: 'urun_id' });
@@ -297,7 +312,7 @@ IslemLog.belongsTo(Kullanici,{ foreignKey: 'kullanici_id' });
 module.exports = {
   sequelize, Sequelize,
   Kullanici, Rol, KullaniciRol,
-  Kategori, Marka, Sezon, KategoriSezon, Beden,
+  Kategori, Marka, Sezon, KategoriSezon, Beden, Cinsiyet, UrunCinsiyet,
   Urun, Kanal, KanalUrun,
   FiyatlandirmaKurali, Stok,
   Rakip, RakipFiyat,

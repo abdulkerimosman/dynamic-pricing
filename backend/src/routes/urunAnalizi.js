@@ -1,6 +1,7 @@
 'use strict';
 
-const { sequelize } = require('../models');
+const { sequelize, Stok, FiyatlandirmaKurali } = require('../models');
+const pricingEngine = require('../services/pricingEngine');
 
 module.exports = async function (fastify, opts) {
   fastify.get('/', { preHandler: [fastify.authenticate] }, async (request, reply) => {
@@ -12,6 +13,21 @@ module.exports = async function (fastify, opts) {
         u.stok_kodu as stokKodu,
         u.maliyet,
         k.kategori_adi as kategori,
+        (
+          SELECT GROUP_CONCAT(DISTINCT s.sezon_adi ORDER BY s.sezon_adi SEPARATOR ', ')
+          FROM kategori_sezon ks
+          JOIN sezonlar s ON s.sezon_id = ks.sezon_id
+          WHERE ks.kategori_id = u.kategori_id
+        ) as sezon,
+        COALESCE((
+          SELECT CASE
+            WHEN COUNT(*) > 1 THEN 'Unisex'
+            ELSE MAX(c.cinsiyet_adi)
+          END
+          FROM urun_cinsiyet uc
+          JOIN cinsiyetler c ON c.cinsiyet_id = uc.cinsiyet_id
+          WHERE uc.urun_id = u.urun_id
+        ), 'Unisex') as cinsiyet,
         m.marka_adi as marka,
         u.resim_url as fotograf,
         u.guncelleme_tarihi as guncellemeSaati,
@@ -123,6 +139,8 @@ module.exports = async function (fastify, opts) {
         toplamStok: parseInt(item.toplamStok || 0),
         enUcuzSatici: item.enUcuzSatici || '-',
         kategori: item.kategori || '-',
+        sezon: item.sezon || '-',
+        cinsiyet: item.cinsiyet || 'Unisex',
         karlilikIhlali: karlilikIhlali
       };
     });
@@ -170,8 +188,11 @@ module.exports = async function (fastify, opts) {
     // Find the product and basic info
     const urunler = await sequelize.query(`
       SELECT 
-        u.urun_id, u.maliyet, k.kar_beklentisi,
+        u.urun_id, u.kategori_id, u.maliyet, k.kar_beklentisi,
+        ku.kanal_urun_id, ku.kanal_id,
         ku.web_indirim_fiyati as indirimliFiyat,
+        ku.web_indirim_fiyati,
+        ku.pazaryeri_indirim_fiyat,
         (
           SELECT fo.oneri_id
           FROM fiyat_onerileri fo
@@ -188,7 +209,8 @@ module.exports = async function (fastify, opts) {
         ) as onerilenFiyat
       FROM urunler u
       LEFT JOIN kategoriler k ON u.kategori_id = k.kategori_id
-      LEFT JOIN kanal_urun ku ON u.urun_id = ku.urun_id AND ku.kanal_id = 1
+      LEFT JOIN kanal_urun ku ON u.urun_id = ku.urun_id
+        AND ku.kanal_id = (SELECT kanal_id FROM kanallar WHERE kanal_sahibi = 1 LIMIT 1)
       WHERE u.stok_kodu = :stokKodu
       LIMIT 1
     `, { replacements: { stokKodu }, type: sequelize.QueryTypes.SELECT });
@@ -252,7 +274,43 @@ module.exports = async function (fastify, opts) {
     const indirimliFiyat = parseFloat(urun.indirimliFiyat || 0);
     const maliyet = parseFloat(urun.maliyet || 0);
     const hedefKarlilik = parseFloat(urun.kar_beklentisi || 0.45);
-    const onerilenFiyat = parseFloat(urun.onerilenFiyat || 329);
+
+    const [stoklar, kurals] = await Promise.all([
+      Stok.findAll({ where: { urun_id: urun.urun_id } }),
+      FiyatlandirmaKurali.findAll({
+        where: {
+          kanal_id: urun.kanal_id,
+          kategori_id: urun.kategori_id,
+          aktiflik_durumu: true,
+        },
+        limit: 1,
+      }),
+    ]);
+
+    const defaultKural = {
+      komisyon_orani: 0,
+      lojistik_gideri: 0,
+      kargo_ucreti: 0,
+      max_indirim: 0.40,
+      min_kar: 0.10,
+      rekabet_katsayisi: 1.05,
+    };
+
+    const hesapSonucu = pricingEngine.compute({
+      urun: {
+        maliyet,
+        Kategori: { kar_beklentisi: hedefKarlilik },
+      },
+      kanalUrun: {
+        web_indirim_fiyati: urun.web_indirim_fiyati,
+        pazaryeri_indirim_fiyat: urun.pazaryeri_indirim_fiyat,
+      },
+      kural: kurals[0] || defaultKural,
+      rakipFiyatlar: rakipPreices.map((fiyat) => ({ fiyat })),
+      stoklar,
+    });
+
+    const onerilenFiyat = parseFloat(hesapSonucu.onerilenFiyat || urun.onerilenFiyat || 329);
 
     const eskiKarlilik = maliyet > 0 ? ((indirimliFiyat - maliyet) / maliyet) * 100 : 0;
     const yeniKarlilik = maliyet > 0 ? ((onerilenFiyat - maliyet) / maliyet) * 100 : 0;
@@ -279,11 +337,11 @@ module.exports = async function (fastify, opts) {
       fiyatGecmisi,
       algoritmaDetayi: {
         maliyet,
-        hedefKarlilik,
-        rakipFiyatOrtalamasi: parseFloat(avgRakipFiyat.toFixed(2)),
-        rekabetKatsayisi: 1.05,
-        talepKatsayisi: 1.2,
-        stokKatsayisi: 0.9,
+        hedefKarlilik: hesapSonucu.hesapDetayi?.hedefKarlilik ?? hedefKarlilik,
+        rakipFiyatOrtalamasi: parseFloat((hesapSonucu.hesapDetayi?.rakipFiyatOrtalamasi ?? avgRakipFiyat).toFixed(2)),
+        rekabetKatsayisi: hesapSonucu.hesapDetayi?.rekabetKatsayisi ?? 1.05,
+        talepKatsayisi: hesapSonucu.hesapDetayi?.talepKatsayisi ?? 1.0,
+        stokKatsayisi: hesapSonucu.hesapDetayi?.stokKatsayisi ?? 1.0,
         eskiKarlilik: Math.round(eskiKarlilik),
         yeniKarlilik: Math.round(yeniKarlilik),
         onerilenFiyat,

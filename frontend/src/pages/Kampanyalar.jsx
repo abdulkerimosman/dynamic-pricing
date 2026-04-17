@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Loader2, CalendarRange } from 'lucide-react';
 import api from '../api';
+import FilterSelect from '../components/FilterSelect';
 
 export default function Kampanyalar() {
   const qc = useQueryClient();
@@ -60,11 +61,15 @@ export default function Kampanyalar() {
             ))}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Kanal</label>
-              <select value={form.kanal_id} onChange={e => setForm(p => ({ ...p, kanal_id: e.target.value }))}
-                className="form-input">
+              <FilterSelect
+                value={form.kanal_id}
+                onChange={e => setForm(p => ({ ...p, kanal_id: e.target.value }))}
+                selectClassName="h-10 border-2 text-sm"
+                iconSize={16}
+              >
                 <option value="">Seçiniz</option>
                 {kanallar.map(k => <option key={k.kanal_id} value={k.kanal_id}>{k.kanal_adi}</option>)}
-              </select>
+              </FilterSelect>
             </div>
           </div>
           <div className="flex gap-3">

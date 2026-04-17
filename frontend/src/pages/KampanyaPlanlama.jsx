@@ -1,8 +1,11 @@
 import { useEffect, useState, Fragment } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Filter, Eye, Loader2, FileSpreadsheet } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import api from '../api';
 import ProductThumb from '../components/ProductThumb';
+import FilterSelect from '../components/FilterSelect';
+import { exportRowsToExcelCsv } from '../utils/excelExport';
 
 function KomisyonAnalizRow({ urun, kanalId }) {
   const [selectedKomisyon, setSelectedKomisyon] = useState('13');
@@ -133,21 +136,18 @@ function KomisyonAnalizRow({ urun, kanalId }) {
               <tbody>
                 <tr className="bg-white">
                   <td className="px-2 py-2 border-r border-gray-200">
-                    <div className="relative">
-                      <select 
-                        value={selectedKomisyon} 
-                        onChange={(e) => setSelectedKomisyon(e.target.value)}
-                        className="w-full border border-gray-200 rounded px-2 py-1.5 text-[11px] focus:border-gray-500 outline-none appearance-none font-medium"
-                      >
-                        <option value={data.komisyon1}>{data.komisyon1}</option>
-                        <option value={data.komisyon2}>{data.komisyon2}</option>
-                        <option value={data.komisyon3}>{data.komisyon3}</option>
-                        <option value={data.komisyon4}>{data.komisyon4}</option>
-                      </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
-                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                      </div>
-                    </div>
+                    <FilterSelect
+                      value={selectedKomisyon}
+                      onChange={(e) => setSelectedKomisyon(e.target.value)}
+                      selectClassName="h-8 border border-gray-300 rounded px-2 pr-8 text-[11px] font-medium"
+                      iconSize={14}
+                      iconClassName="right-2"
+                    >
+                      <option value={data.komisyon1}>{data.komisyon1}</option>
+                      <option value={data.komisyon2}>{data.komisyon2}</option>
+                      <option value={data.komisyon3}>{data.komisyon3}</option>
+                      <option value={data.komisyon4}>{data.komisyon4}</option>
+                    </FilterSelect>
                   </td>
                   <td className="px-2 py-2 text-[11px] border-r border-gray-200 font-medium break-words">{data.guncelPySatisFiyati}</td>
                   <td className="px-2 py-2 text-[11px] border-r border-gray-200 break-words">
@@ -200,9 +200,14 @@ function KampanyaAyarlariModal({ onClose, kanallar }) {
     enabled: !!selectedKanal && !!selectedKategori && !!selectedKomisyon
   });
 
+  const renderModal = (content) => {
+    if (typeof document === 'undefined') return null;
+    return createPortal(content, document.body);
+  };
+
   if (isConfirmOpen) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+    return renderModal(
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
         <div className="bg-white rounded-lg shadow-xl p-10 max-w-lg w-full text-center relative pointer-events-auto">
           <div className="absolute top-4 left-4 bg-gray-200 text-gray-700 px-3 py-1 rounded text-xs font-semibold">Kampanya Ayarları Uyarı</div>
           <h2 className="text-2xl mt-8 mb-10 font-semibold text-gray-800">Onaylamak istediğinden emin misin?</h2>
@@ -236,8 +241,8 @@ function KampanyaAyarlariModal({ onClose, kanallar }) {
     );
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+  return renderModal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-lg shadow-xl p-8 max-w-6xl w-full mx-4 h-[80vh] overflow-y-auto relative pointer-events-auto flex flex-col">
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -248,27 +253,23 @@ function KampanyaAyarlariModal({ onClose, kanallar }) {
         <h2 className="text-2xl mt-8 mb-8 font-semibold text-gray-900 border-b border-gray-200 pb-4">Genel Kategori Bazlı Komisyon What İf Analizi</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Kategori Seçiniz</label>
-            <select value={selectedKategori} onChange={e => setSelectedKategori(e.target.value)} className="w-full border border-gray-200 rounded px-3 py-2 outline-none focus:border-gray-500">
-              <option value="">Seçiniz</option>
-              {kategoriler?.map(k => <option key={k.kategori_id} value={k.kategori_id}>{k.kategori_adi}</option>)}
-            </select>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Kanal Seçiniz</label>
-            <select value={selectedKanal} onChange={e => setSelectedKanal(e.target.value)} className="w-full border border-gray-200 rounded px-3 py-2 outline-none focus:border-gray-500">
-              <option value="">Seçiniz</option>
-              {kanallar?.map(k => <option key={k.kanal_id} value={k.kanal_id}>{k.kanal_adi}</option>)}
-            </select>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Komisyon Oranı Seçiniz</label>
-            <select value={selectedKomisyon} onChange={e => setSelectedKomisyon(e.target.value)} className="w-full border border-gray-200 rounded px-3 py-2 outline-none focus:border-gray-500" disabled={!komisyonOranlari?.length}>
-              <option value="">Seçiniz</option>
-              {komisyonOranlari?.map((ko, i) => <option key={i} value={ko.oran}>{ko.oran}</option>)}
-            </select>
-          </div>
+          <FilterSelect label="Kategori Seçiniz" value={selectedKategori} onChange={e => setSelectedKategori(e.target.value)}>
+            <option value="">Seçiniz</option>
+            {kategoriler?.map(k => <option key={k.kategori_id} value={k.kategori_id}>{k.kategori_adi}</option>)}
+          </FilterSelect>
+          <FilterSelect label="Kanal Seçiniz" value={selectedKanal} onChange={e => setSelectedKanal(e.target.value)}>
+            <option value="">Seçiniz</option>
+            {kanallar?.map(k => <option key={k.kanal_id} value={k.kanal_id}>{k.kanal_adi}</option>)}
+          </FilterSelect>
+          <FilterSelect
+            label="Komisyon Oranı Seçiniz"
+            value={selectedKomisyon}
+            onChange={e => setSelectedKomisyon(e.target.value)}
+            disabled={!komisyonOranlari?.length}
+          >
+            <option value="">Seçiniz</option>
+            {komisyonOranlari?.map((ko, i) => <option key={i} value={ko.oran}>{ko.oran}</option>)}
+          </FilterSelect>
         </div>
 
         {selectedKomisyon && (
@@ -361,6 +362,10 @@ export default function KampanyaPlanlama() {
   const [search, setSearch] = useState('');
   const [expandedRow, setExpandedRow] = useState(null);
   const [isAyarlarOpen, setIsAyarlarOpen] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedSezon, setSelectedSezon] = useState('');
+  const [selectedCinsiyet, setSelectedCinsiyet] = useState('');
+  const [selectedKategori, setSelectedKategori] = useState('');
 
   const {
     data: kanallar,
@@ -390,12 +395,46 @@ export default function KampanyaPlanlama() {
     enabled: !!selectedKanal
   });
 
-  const filteredUrunler = (urunler || []).filter(u => 
-    search === '' || 
-    (u.stokKodu && u.stokKodu.toLowerCase().includes(search.toLowerCase())) ||
-    (u.stokAdi && u.stokAdi.toLowerCase().includes(search.toLowerCase())) ||
-    (u.barkod && u.barkod.toLowerCase().includes(search.toLowerCase()))
-  );
+  const urunListesi = urunler || [];
+  const sezonOptions = Array.from(new Set(urunListesi.map((u) => u.sezon).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'tr'));
+  const cinsiyetOptions = Array.from(new Set(urunListesi.map((u) => u.cinsiyet).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'tr'));
+  const kategoriOptions = Array.from(new Set(urunListesi.map((u) => u.kategori).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'tr'));
+
+  const filteredUrunler = urunListesi.filter((u) => {
+    const searchMatch = search === '' ||
+      (u.stokKodu && u.stokKodu.toLowerCase().includes(search.toLowerCase())) ||
+      (u.stokAdi && u.stokAdi.toLowerCase().includes(search.toLowerCase())) ||
+      (u.barkod && u.barkod.toLowerCase().includes(search.toLowerCase()));
+    const sezonMatch = !selectedSezon || u.sezon === selectedSezon;
+    const cinsiyetMatch = !selectedCinsiyet || u.cinsiyet === selectedCinsiyet;
+    const kategoriMatch = !selectedKategori || u.kategori === selectedKategori;
+    return searchMatch && sezonMatch && cinsiyetMatch && kategoriMatch;
+  });
+
+  const handleExcelExport = () => {
+    exportRowsToExcelCsv({
+      rows: filteredUrunler,
+      fileName: 'kampanya_planlama',
+      columns: [
+        { header: 'Stok Kodu', value: 'stokKodu' },
+        { header: 'Stok Adi', value: 'stokAdi' },
+        { header: 'Marka', value: 'marka' },
+        { header: 'Cinsiyet', value: 'cinsiyet' },
+        { header: 'Sezon', value: 'sezon' },
+        { header: 'Kategori', value: 'kategori' },
+        { header: 'Barkod', value: 'barkod' },
+        { header: 'Toplam Stok', value: 'toplamStok' },
+        { header: 'Maliyet', value: 'maliyet' },
+        { header: 'Website Liste Fiyat', value: 'webListeFiyat' },
+        { header: 'Website Indirimli', value: 'webIndirimliFiyat' },
+        { header: 'Website Indirim Yuzde', value: (row) => (row.webIndirimYuzde > 0 ? `${row.webIndirimYuzde}%` : '-') },
+        { header: 'Pazaryeri Liste Fiyat', value: 'pyListeFiyati' },
+        { header: 'Pazaryeri Indirimli', value: 'pyIndirimliFiyati' },
+        { header: 'Pazaryeri Indirim Yuzde', value: (row) => (row.pyIndirimYuzde > 0 ? `${row.pyIndirimYuzde}%` : '-') },
+        { header: 'Guncel PY Satis Fiyati', value: 'guncelPySatisFiyati' },
+      ],
+    });
+  };
 
   return (
     <div className="page-shell w-full max-w-none">
@@ -420,10 +459,11 @@ export default function KampanyaPlanlama() {
         {loadingKanallar ? (
           <Loader2 size={20} className="animate-spin text-gray-400" />
         ) : (
-          <select 
+          <FilterSelect
             value={selectedKanal} 
             onChange={e => setSelectedKanal(e.target.value)}
-            className="form-input min-w-[220px] max-w-[280px]"
+            className="min-w-[220px] max-w-[320px]"
+            selectClassName="h-12"
             disabled={!kanallar?.length}
           >
             <option value="" disabled>
@@ -432,7 +472,7 @@ export default function KampanyaPlanlama() {
             {kanallar?.map(k => (
               <option key={k.kanal_id} value={k.kanal_id}>{k.kanal_adi}</option>
             ))}
-          </select>
+          </FilterSelect>
         )}
       </div>
 
@@ -455,7 +495,7 @@ export default function KampanyaPlanlama() {
         </h2>
         
         <div className="flex items-center gap-3">
-          <button className="btn-secondary">
+          <button className="btn-secondary" onClick={handleExcelExport} disabled={filteredUrunler.length === 0}>
             <FileSpreadsheet size={16} />
             Excel'e Aktar
           </button>
@@ -471,12 +511,62 @@ export default function KampanyaPlanlama() {
             <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
           </div>
           
-          <button className="btn-secondary px-3 py-2">
+          <button onClick={() => setShowFilters((v) => !v)} className="btn-secondary px-3 py-2">
             <Filter size={16} />
             Filter
           </button>
         </div>
       </div>
+
+      {showFilters && (
+        <div className="panel p-4 grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
+          <FilterSelect
+            label="Sezon"
+            value={selectedSezon}
+            onChange={(e) => setSelectedSezon(e.target.value)}
+            selectClassName="h-11 border-2 text-sm"
+            iconSize={16}
+          >
+            <option value="">Tumu</option>
+            {sezonOptions.map((sezon) => <option key={sezon} value={sezon}>{sezon}</option>)}
+          </FilterSelect>
+
+          <FilterSelect
+            label="Cinsiyet"
+            value={selectedCinsiyet}
+            onChange={(e) => setSelectedCinsiyet(e.target.value)}
+            selectClassName="h-11 border-2 text-sm"
+            iconSize={16}
+          >
+            <option value="">Tumu</option>
+            {cinsiyetOptions.map((cinsiyet) => <option key={cinsiyet} value={cinsiyet}>{cinsiyet}</option>)}
+          </FilterSelect>
+
+          <FilterSelect
+            label="Kategori"
+            value={selectedKategori}
+            onChange={(e) => setSelectedKategori(e.target.value)}
+            selectClassName="h-11 border-2 text-sm"
+            iconSize={16}
+          >
+            <option value="">Tumu</option>
+            {kategoriOptions.map((kategori) => <option key={kategori} value={kategori}>{kategori}</option>)}
+          </FilterSelect>
+
+          <div className="flex items-end">
+            <button
+              className="btn-secondary w-full justify-center"
+              onClick={() => {
+                setSelectedSezon('');
+                setSelectedCinsiyet('');
+                setSelectedKategori('');
+              }}
+            >
+              Filtreleri Temizle
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="table-shell text-xs">

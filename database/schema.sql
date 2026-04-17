@@ -95,7 +95,16 @@ CREATE TABLE beden (
 );
 
 -- ----------------------------
--- 9. URUNLER (Products)
+-- 9. CINSIYETLER (Genders)
+-- ----------------------------
+CREATE TABLE cinsiyetler (
+    cinsiyet_id  INT          NOT NULL AUTO_INCREMENT,
+    cinsiyet_adi VARCHAR(30)  NOT NULL UNIQUE,
+    PRIMARY KEY (cinsiyet_id)
+);
+
+-- ----------------------------
+-- 10. URUNLER (Products)
 -- ----------------------------
 CREATE TABLE urunler (
     urun_id          INT            NOT NULL AUTO_INCREMENT,
@@ -114,7 +123,20 @@ CREATE TABLE urunler (
 );
 
 -- ----------------------------
--- 10. KANALLAR (Sales Channels)
+-- 11. URUN_CINSIYET (Product-Gender Junction)
+-- ----------------------------
+CREATE TABLE urun_cinsiyet (
+    urun_cinsiyet_id INT NOT NULL AUTO_INCREMENT,
+    urun_id          INT NOT NULL,
+    cinsiyet_id      INT NOT NULL,
+    PRIMARY KEY (urun_cinsiyet_id),
+    UNIQUE KEY uq_urun_cinsiyet (urun_id, cinsiyet_id),
+    CONSTRAINT fk_uc_urun     FOREIGN KEY (urun_id)     REFERENCES urunler (urun_id)         ON DELETE CASCADE,
+    CONSTRAINT fk_uc_cinsiyet FOREIGN KEY (cinsiyet_id) REFERENCES cinsiyetler (cinsiyet_id) ON DELETE CASCADE
+);
+
+-- ----------------------------
+-- 12. KANALLAR (Sales Channels)
 -- ----------------------------
 CREATE TABLE kanallar (
     kanal_id         INT          NOT NULL AUTO_INCREMENT,
@@ -127,7 +149,7 @@ CREATE TABLE kanallar (
 );
 
 -- ----------------------------
--- 11. KANAL_URUN (Channel-Product Listing)
+-- 13. KANAL_URUN (Channel-Product Listing)
 -- ----------------------------
 CREATE TABLE kanal_urun (
     kanal_urun_id          INT            NOT NULL AUTO_INCREMENT,
@@ -144,7 +166,7 @@ CREATE TABLE kanal_urun (
 );
 
 -- ----------------------------
--- 12. FIYATLANDIRMA_KURALLARI (Pricing Rules)
+-- 14. FIYATLANDIRMA_KURALLARI (Pricing Rules)
 -- ----------------------------
 CREATE TABLE fiyatlandirma_kurallari (
     kural_id                 INT            NOT NULL AUTO_INCREMENT,
@@ -168,7 +190,7 @@ CREATE TABLE fiyatlandirma_kurallari (
 );
 
 -- ----------------------------
--- 13. STOK (Inventory)
+-- 15. STOK (Inventory)
 -- ----------------------------
 CREATE TABLE stok (
     stok_id           INT            NOT NULL AUTO_INCREMENT,
@@ -184,7 +206,7 @@ CREATE TABLE stok (
 );
 
 -- ----------------------------
--- 14. RAKIPLER (Competitors)
+-- 16. RAKIPLER (Competitors)
 -- ----------------------------
 CREATE TABLE rakipler (
     rakip_id  INT          NOT NULL AUTO_INCREMENT,
@@ -194,7 +216,7 @@ CREATE TABLE rakipler (
 );
 
 -- ----------------------------
--- 15. RAKIP_FIYATLAR (Competitor Prices)
+-- 17. RAKIP_FIYATLAR (Competitor Prices)
 -- ----------------------------
 CREATE TABLE rakip_fiyatlar (
     rakip_fiyat_id    INT            NOT NULL AUTO_INCREMENT,
@@ -212,7 +234,7 @@ CREATE TABLE rakip_fiyatlar (
 );
 
 -- ----------------------------
--- 16. FIYAT_ONERILERI (Price Suggestions)
+-- 18. FIYAT_ONERILERI (Price Suggestions)
 -- ----------------------------
 CREATE TABLE fiyat_onerileri (
     oneri_id              INT            NOT NULL AUTO_INCREMENT,
@@ -230,7 +252,7 @@ CREATE TABLE fiyat_onerileri (
 );
 
 -- ----------------------------
--- 17. FIYAT_GECMISI (Price History)
+-- 19. FIYAT_GECMISI (Price History)
 -- ----------------------------
 CREATE TABLE fiyat_gecmisi (
     gecmis_id              INT            NOT NULL AUTO_INCREMENT,
@@ -246,7 +268,7 @@ CREATE TABLE fiyat_gecmisi (
 );
 
 -- ----------------------------
--- 18. ALERTLER (Alerts)
+-- 20. ALERTLER (Alerts)
 -- ----------------------------
 CREATE TABLE alertler (
     alert_id          INT         NOT NULL AUTO_INCREMENT,
@@ -263,7 +285,7 @@ CREATE TABLE alertler (
 );
 
 -- ----------------------------
--- 19. KAMPANYA_PLANLARI (Campaign Plans)
+-- 21. KAMPANYA_PLANLARI (Campaign Plans)
 -- ----------------------------
 CREATE TABLE kampanya_planlari (
     kampanya_id          INT            NOT NULL AUTO_INCREMENT,
@@ -280,7 +302,7 @@ CREATE TABLE kampanya_planlari (
 );
 
 -- ----------------------------
--- 20. SATISLAR (Sales)
+-- 22. SATISLAR (Sales)
 -- ----------------------------
 CREATE TABLE satislar (
     satis_id          INT            NOT NULL AUTO_INCREMENT,
@@ -294,7 +316,7 @@ CREATE TABLE satislar (
 );
 
 -- ----------------------------
--- 21. ISLEM_LOG (Audit Log)
+-- 23. ISLEM_LOG (Audit Log)
 -- ----------------------------
 CREATE TABLE islem_log (
     islem_log_id  INT          NOT NULL AUTO_INCREMENT,
@@ -310,7 +332,7 @@ CREATE TABLE islem_log (
 );
 
 -- ----------------------------
--- 22. HATA_LOG (Error Log)
+-- 24. HATA_LOG (Error Log)
 -- ----------------------------
 CREATE TABLE hata_log (
     hata_log_id  INT          NOT NULL AUTO_INCREMENT,

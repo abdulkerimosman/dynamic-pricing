@@ -94,7 +94,23 @@ class PricingEngine {
       stockCoeff, onerilenFiyat, uyarilar, komisyon,
     });
 
-    return { onerilenFiyat, minFiyat, uyarilar, neden, risk };
+    return {
+      onerilenFiyat,
+      minFiyat,
+      uyarilar,
+      neden,
+      risk,
+      hesapDetayi: {
+        maliyet,
+        hedefKarlilik: karBeklentisi,
+        hedefFiyat,
+        rakipFiyatOrtalamasi: rakipOrtalama,
+        rekabetKatsayisi,
+        stokKatsayisi: stockCoeff,
+        talepKatsayisi: demandCoeff,
+        komisyon,
+      },
+    };
   }
 
   /**

@@ -4,6 +4,8 @@ import { Search, Filter, Eye, Loader2, FileSpreadsheet } from 'lucide-react';
 import { ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import api from '../api';
 import ProductThumb from '../components/ProductThumb';
+import FilterSelect from '../components/FilterSelect';
+import { exportRowsToExcelCsv } from '../utils/excelExport';
 
 function StokDetayRow({ urun }) {
   const { data, isLoading } = useQuery({
@@ -107,6 +109,10 @@ function StokDetayRow({ urun }) {
 export default function Stok() {
   const [search, setSearch] = useState('');
   const [expandedRow, setExpandedRow] = useState(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedSezon, setSelectedSezon] = useState('');
+  const [selectedCinsiyet, setSelectedCinsiyet] = useState('');
+  const [selectedKategori, setSelectedKategori] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['stok-analiz'],
@@ -116,11 +122,39 @@ export default function Stok() {
   const kpis = data?.kpis || {};
   const urunler = data?.urunler || [];
 
+  const sezonOptions = Array.from(new Set(urunler.map((u) => u.sezon).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'tr'));
+  const cinsiyetOptions = Array.from(new Set(urunler.map((u) => u.cinsiyet).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'tr'));
+  const kategoriOptions = Array.from(new Set(urunler.map((u) => u.kategori).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'tr'));
+
   const filteredUrunler = urunler.filter(u => 
-    search === '' || 
-    (u.stokKodu && u.stokKodu.toLowerCase().includes(search.toLowerCase())) ||
-    (u.marka && u.marka.toLowerCase().includes(search.toLowerCase()))
+    (search === '' || 
+      (u.stokKodu && u.stokKodu.toLowerCase().includes(search.toLowerCase())) ||
+      (u.marka && u.marka.toLowerCase().includes(search.toLowerCase()))) &&
+    (!selectedSezon || u.sezon === selectedSezon) &&
+    (!selectedCinsiyet || u.cinsiyet === selectedCinsiyet) &&
+    (!selectedKategori || u.kategori === selectedKategori)
   );
+
+  const handleExcelExport = () => {
+    exportRowsToExcelCsv({
+      rows: filteredUrunler,
+      fileName: 'stok_analizi',
+      columns: [
+        { header: 'Stok Kodu', value: 'stokKodu' },
+        { header: 'Marka', value: 'marka' },
+        { header: 'Cinsiyet', value: 'cinsiyet' },
+        { header: 'Sezon', value: 'sezon' },
+        { header: 'Kategori', value: 'kategori' },
+        { header: 'Toplam Stok', value: 'toplamStok' },
+        { header: 'Stok Gun', value: 'stokGun' },
+        { header: 'Satis Hiz', value: 'satisHiz' },
+        { header: 'Beden Kirikligi Orani', value: (row) => (row.bedenKiriklikOrani > 0 ? `${row.bedenKiriklikOrani}%` : '-') },
+        { header: 'Oneri', value: 'oneri' },
+        { header: 'Maliyet', value: 'maliyet' },
+        { header: 'Guncelleme Saati', value: (row) => (row.guncellemeSaati ? new Date(row.guncellemeSaati).toLocaleString('tr-TR') : '-') },
+      ],
+    });
+  };
 
   return (
     <div className="page-shell w-full max-w-none">
@@ -164,7 +198,7 @@ export default function Stok() {
 
       {/* Action Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-end gap-4 mt-6">
-        <button className="btn-secondary">
+        <button className="btn-secondary" onClick={handleExcelExport} disabled={filteredUrunler.length === 0}>
           <FileSpreadsheet size={16} />
           Excel'e Aktar
         </button>
@@ -180,11 +214,61 @@ export default function Stok() {
           <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
         </div>
         
-        <button className="btn-secondary">
+        <button onClick={() => setShowFilters((v) => !v)} className="btn-secondary">
           <Filter size={18} />
           Filter
         </button>
       </div>
+
+      {showFilters && (
+        <div className="panel p-4 grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
+          <FilterSelect
+            label="Sezon"
+            value={selectedSezon}
+            onChange={(e) => setSelectedSezon(e.target.value)}
+            selectClassName="h-11 border-2 text-sm"
+            iconSize={16}
+          >
+            <option value="">Tumu</option>
+            {sezonOptions.map((sezon) => <option key={sezon} value={sezon}>{sezon}</option>)}
+          </FilterSelect>
+
+          <FilterSelect
+            label="Cinsiyet"
+            value={selectedCinsiyet}
+            onChange={(e) => setSelectedCinsiyet(e.target.value)}
+            selectClassName="h-11 border-2 text-sm"
+            iconSize={16}
+          >
+            <option value="">Tumu</option>
+            {cinsiyetOptions.map((cinsiyet) => <option key={cinsiyet} value={cinsiyet}>{cinsiyet}</option>)}
+          </FilterSelect>
+
+          <FilterSelect
+            label="Kategori"
+            value={selectedKategori}
+            onChange={(e) => setSelectedKategori(e.target.value)}
+            selectClassName="h-11 border-2 text-sm"
+            iconSize={16}
+          >
+            <option value="">Tumu</option>
+            {kategoriOptions.map((kategori) => <option key={kategori} value={kategori}>{kategori}</option>)}
+          </FilterSelect>
+
+          <div className="flex items-end">
+            <button
+              className="btn-secondary w-full justify-center"
+              onClick={() => {
+                setSelectedSezon('');
+                setSelectedCinsiyet('');
+                setSelectedKategori('');
+              }}
+            >
+              Filtreleri Temizle
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="table-shell text-sm">

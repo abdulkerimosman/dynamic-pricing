@@ -80,6 +80,12 @@ INSERT INTO beden (beden_adi) VALUES
 ('38'), ('39'), ('40'), ('41'), ('42'), ('43'), ('44'), ('45');
 
 -- ----------------------------
+-- CINSIYETLER
+-- ----------------------------
+INSERT INTO cinsiyetler (cinsiyet_adi) VALUES
+('Kadın'), ('Erkek'), ('Çocuk'), ('Unisex');
+
+-- ----------------------------
 -- KANALLAR
 -- ----------------------------
 INSERT INTO kanallar (kanal_adi, kanal_url, kanal_aciklamasi, kanal_sahibi) VALUES
@@ -146,6 +152,20 @@ INSERT INTO urunler (barkod, stok_kodu, urun_adi, kategori_id, marka_id, maliyet
 ('8690000048', 'AS-GEL-048', 'Asics Gel-Quantum 180 7 Erkek',              1, 6,  620.00, 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400'),
 ('8690000049', 'SL-SPD-049', 'Salomon Speedcross 6 Erkek Patika',          4, 7,  890.00, 'https://images.unsplash.com/photo-1486915309851-b0cc1f8a0084?w=400'),
 ('8690000050', 'CL-PFT-050', 'Columbia PFG Terminal Tackle Erkek Gömlek',  4, 10, 310.00, 'https://images.unsplash.com/photo-1486915309851-b0cc1f8a0084?w=400');
+
+-- ----------------------------
+-- URUN_CINSIYET
+-- Ürün adına göre başlangıç cinsiyet ataması (import ile güncellenebilir)
+-- ----------------------------
+INSERT INTO urun_cinsiyet (urun_id, cinsiyet_id)
+SELECT u.urun_id,
+  CASE
+    WHEN LOWER(u.urun_adi) REGEXP 'kadin|kadın|bayan|kiz|kız' THEN (SELECT cinsiyet_id FROM cinsiyetler WHERE cinsiyet_adi = 'Kadın' LIMIT 1)
+    WHEN LOWER(u.urun_adi) REGEXP 'erkek|bay|oglan|oğlan' THEN (SELECT cinsiyet_id FROM cinsiyetler WHERE cinsiyet_adi = 'Erkek' LIMIT 1)
+    WHEN LOWER(u.urun_adi) REGEXP 'cocuk|çocuk|kids|bebek' THEN (SELECT cinsiyet_id FROM cinsiyetler WHERE cinsiyet_adi = 'Çocuk' LIMIT 1)
+    ELSE (SELECT cinsiyet_id FROM cinsiyetler WHERE cinsiyet_adi = 'Unisex' LIMIT 1)
+  END
+FROM urunler u;
 
 -- ----------------------------
 -- KANAL_URUN (list products on channels)

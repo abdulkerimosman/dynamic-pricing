@@ -39,7 +39,7 @@ async function run() {
     'islem_log','hata_log','alertler','fiyat_onerileri','fiyat_gecmisi',
     'satislar','rakip_fiyatlar','stok','kanal_urun','kampanya_planlari',
     'kategori_sezon','kanal_komisyon_kademeleri','fiyatlandirma_kurallari',
-    'urunler','rakipler','sezonlar','kanallar','kategoriler','marka','beden',
+    'urun_cinsiyet','urunler','rakipler','sezonlar','kanallar','kategoriler','marka','beden','cinsiyetler',
     'kullanici_rol','roller','kullanicilar'
   ]) {
     await q(`TRUNCATE TABLE ${t}`);
@@ -92,6 +92,11 @@ async function run() {
   await q(`INSERT INTO beden (beden_id, beden_adi) VALUES
     (1,'XS'),(2,'S'),(3,'M'),(4,'L'),(5,'XL'),(6,'XXL'),
     (7,'36'),(8,'37'),(9,'38'),(10,'39'),(11,'40'),(12,'41'),(13,'42'),(14,'43'),(15,'44')
+  `);
+
+  // ── GENDERS ─────────────────────────────────────────────────────────────
+  await q(`INSERT INTO cinsiyetler (cinsiyet_id, cinsiyet_adi) VALUES
+    (1,'Kadın'),(2,'Erkek'),(3,'Çocuk'),(4,'Unisex')
   `);
 
   // ── CHANNELS ──────────────────────────────────────────────────────────────
@@ -168,6 +173,16 @@ async function run() {
   );
   await q(`INSERT INTO urunler (urun_id,barkod,stok_kodu,urun_adi,kategori_id,marka_id,maliyet,resim_url) VALUES ${productRows.join(',')}`);
   console.log(`✅ ${products.length} products inserted`);
+
+  // ── PRODUCT ↔ GENDER (M:N) ─────────────────────────────────────────────
+  const urunCinsiyetRows = [];
+  let urunCinsiyetId = 1;
+  for (const p of products) {
+    // Generated product names are not gendered; default to Unisex.
+    urunCinsiyetRows.push(`(${urunCinsiyetId++},${p.id},4)`);
+  }
+  await q(`INSERT INTO urun_cinsiyet (urun_cinsiyet_id, urun_id, cinsiyet_id) VALUES ${urunCinsiyetRows.join(',')}`);
+  console.log('✅ Product-gender mappings inserted');
 
   // ── STOCK (per product per size) ──────────────────────────────────────────
   const shoeBedens = [7,8,9,10,11,12,13,14,15];

@@ -43,6 +43,21 @@ module.exports = async function stokRoutes(fastify) {
         u.resim_url as fotograf,
         m.marka_adi as marka,
         kat.kategori_adi as kategori,
+        (
+          SELECT GROUP_CONCAT(DISTINCT s.sezon_adi ORDER BY s.sezon_adi SEPARATOR ', ')
+          FROM kategori_sezon ks
+          JOIN sezonlar s ON s.sezon_id = ks.sezon_id
+          WHERE ks.kategori_id = u.kategori_id
+        ) as sezon,
+        COALESCE((
+          SELECT CASE
+            WHEN COUNT(*) > 1 THEN 'Unisex'
+            ELSE MAX(c.cinsiyet_adi)
+          END
+          FROM urun_cinsiyet uc
+          JOIN cinsiyetler c ON c.cinsiyet_id = uc.cinsiyet_id
+          WHERE uc.urun_id = u.urun_id
+        ), 'Unisex') as cinsiyet,
         u.guncelleme_tarihi as guncellemeSaati,
         COALESCE((SELECT SUM(stok_miktari) FROM stok s WHERE s.urun_id = u.urun_id), 0) as toplamStok
       FROM urunler u

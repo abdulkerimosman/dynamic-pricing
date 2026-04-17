@@ -13,6 +13,13 @@ async function buildApp() {
     credentials: true,
   });
 
+  await app.register(require('@fastify/multipart'), {
+    limits: {
+      fileSize: 10 * 1024 * 1024,
+      files: 1,
+    },
+  });
+
   await app.register(require('@fastify/jwt'), {
     secret: process.env.JWT_SECRET || 'CHANGE_ME_IN_PRODUCTION_MIN_32_CHARS!!',
     sign: { expiresIn: process.env.JWT_EXPIRES_IN || '15m' },
@@ -53,6 +60,7 @@ async function buildApp() {
   app.register(require('./routes/satislar'),        { prefix: '/api/satislar' });
   app.register(require('./routes/kullanicilar'),    { prefix: '/api/kullanicilar' });
   app.register(require('./routes/urunAnalizi'),     { prefix: '/api/urun-analizi' });
+  app.register(require('./routes/import'),          { prefix: '/api/import' });
 
   // ── Health check ─────────────────────────────────────────────────────────
   app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));

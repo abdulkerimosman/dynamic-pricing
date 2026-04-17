@@ -4,6 +4,8 @@ import { Search, Filter, Eye, Loader2, FileSpreadsheet, ExternalLink, CheckCircl
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import api from '../api';
 import ProductThumb from '../components/ProductThumb';
+import FilterSelect from '../components/FilterSelect';
+import { exportRowsToExcelCsv } from '../utils/excelExport';
 
 function StatCard({ value, title }) {
   return (
@@ -46,6 +48,10 @@ function UrunDetayRow({ urun }) {
 
   const { fiyatGecmisi = [], algoritmaDetayi = {}, rakipler = [] } = data;
   const alg = algoritmaDetayi || {};
+  const hasPendingSuggestion = Boolean(data?.oneriId);
+  const approvalUnavailableReason = hasPendingSuggestion
+    ? ''
+    : 'Bu ürün için beklemede fiyat önerisi bulunamadı. Önce ürün için öneri oluşturulmalı.';
 
   return (
     <tr className="bg-white border-b border-gray-200">
@@ -164,24 +170,31 @@ function UrunDetayRow({ urun }) {
                     Fiyat onaylandı ve güncellendi!
                   </div>
                 ) : (
-                  <button
-                    disabled={!data?.oneriId}
-                    title={!data?.oneriId ? 'Bu ürün için beklemede fiyat önerisi bulunamadı.' : 'Önerilen fiyatı onayla'}
-                    onClick={async () => {
-                      if (!data?.oneriId) return;
-                      try {
-                        await api.patch(`/fiyat-onerileri/${data.oneriId}/onayla`);
-                        setApproved(true);
-                        queryClient.invalidateQueries(['urun-analizi']);
-                        queryClient.invalidateQueries(['urun-detay', urun.stokKodu]);
-                      } catch (e) {
-                        alert('Onaylama başarısız: ' + (e?.response?.data?.error || e.message));
-                      }
-                    }}
-                    className="btn-primary disabled:bg-gray-300 disabled:cursor-not-allowed px-10 py-3"
-                  >
-                    Onayla
-                  </button>
+                  <div className="flex flex-col items-end gap-2">
+                    <button
+                      disabled={!hasPendingSuggestion}
+                      title={approvalUnavailableReason || 'Önerilen fiyatı onayla'}
+                      onClick={async () => {
+                        if (!hasPendingSuggestion) return;
+                        try {
+                          await api.patch(`/fiyat-onerileri/${data.oneriId}/onayla`);
+                          setApproved(true);
+                          queryClient.invalidateQueries(['urun-analizi']);
+                          queryClient.invalidateQueries(['urun-detay', urun.stokKodu]);
+                        } catch (e) {
+                          alert('Onaylama başarısız: ' + (e?.response?.data?.error || e.message));
+                        }
+                      }}
+                      className="btn-primary disabled:bg-gray-300 disabled:cursor-not-allowed px-10 py-3"
+                    >
+                      {hasPendingSuggestion ? 'Onayla' : 'Onay Bekliyor'}
+                    </button>
+                    {!hasPendingSuggestion && (
+                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 max-w-md text-right">
+                        {approvalUnavailableReason}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -197,6 +210,10 @@ function UrunDetayRow({ urun }) {
 export default function UrunFiyatAnalizi() {
   const [search, setSearch] = useState('');
   const [expandedRow, setExpandedRow] = useState(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedSezon, setSelectedSezon] = useState('');
+  const [selectedCinsiyet, setSelectedCinsiyet] = useState('');
+  const [selectedKategori, setSelectedKategori] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['urun-analizi'],
@@ -206,10 +223,43 @@ export default function UrunFiyatAnalizi() {
   const kpis = data?.kpis || {};
   const urunler = data?.urunler || [];
 
-  const filteredUrunler = search ? urunler.filter(u => 
-    u.stokKodu.toLowerCase().includes(search.toLowerCase()) || 
-    (u.marka && u.marka.toLowerCase().includes(search.toLowerCase()))
-  ) : urunler;
+  const sezonOptions = Array.from(new Set(urunler.map((u) => u.sezon).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'tr'));
+  const cinsiyetOptions = Array.from(new Set(urunler.map((u) => u.cinsiyet).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'tr'));
+  const kategoriOptions = Array.from(new Set(urunler.map((u) => u.kategori).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'tr'));
+
+  const filteredUrunler = urunler.filter((u) => {
+    const searchMatch = !search ||
+      (u.stokKodu && u.stokKodu.toLowerCase().includes(search.toLowerCase())) ||
+      (u.marka && u.marka.toLowerCase().includes(search.toLowerCase()));
+    const sezonMatch = !selectedSezon || u.sezon === selectedSezon;
+    const cinsiyetMatch = !selectedCinsiyet || u.cinsiyet === selectedCinsiyet;
+    const kategoriMatch = !selectedKategori || u.kategori === selectedKategori;
+    return searchMatch && sezonMatch && cinsiyetMatch && kategoriMatch;
+  });
+
+  const handleExcelExport = () => {
+    exportRowsToExcelCsv({
+      rows: filteredUrunler,
+      fileName: 'urun_fiyat_analizi',
+      columns: [
+        { header: 'Stok Kodu', value: 'stokKodu' },
+        { header: 'Marka', value: 'marka' },
+        { header: 'Cinsiyet', value: 'cinsiyet' },
+        { header: 'Sezon', value: 'sezon' },
+        { header: 'Kategori', value: 'kategori' },
+        { header: 'Toplam Stok', value: 'toplamStok' },
+        { header: 'Maliyet', value: 'maliyet' },
+        { header: 'Liste Fiyat', value: 'listeFiyat' },
+        { header: 'Indirimli Fiyat', value: 'indirimliFiyat' },
+        { header: 'Rakip Fiyat Ortalamasi', value: 'rakipFiyatOrtalamasi' },
+        { header: 'En Ucuz Satici', value: 'enUcuzSatici' },
+        { header: 'Onerilen Fiyat', value: 'onerilenFiyat' },
+        { header: 'Kar Orani', value: (row) => (row.karOrani > 0 ? `${Math.round(row.karOrani)}%` : '-') },
+        { header: 'Karlilik Ihlali', value: 'karlilikIhlali' },
+        { header: 'Guncelleme Saati', value: 'guncellemeSaati' },
+      ],
+    });
+  };
 
   return (
     <div className="page-shell w-full max-w-none">
@@ -230,7 +280,7 @@ export default function UrunFiyatAnalizi() {
 
       {/* Action Bar */}
       <div className="flex items-center justify-end gap-3 mt-2">
-        <button className="btn-secondary">
+        <button className="btn-secondary" onClick={handleExcelExport} disabled={filteredUrunler.length === 0}>
           <FileSpreadsheet size={16} />
           Excel'e Aktar
         </button>
@@ -246,11 +296,61 @@ export default function UrunFiyatAnalizi() {
           <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
         </div>
         
-        <button className="btn-secondary px-3 py-2">
+        <button onClick={() => setShowFilters((v) => !v)} className="btn-secondary px-3 py-2">
           <Filter size={16} />
           Filter
         </button>
       </div>
+
+      {showFilters && (
+        <div className="panel p-4 grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
+          <FilterSelect
+            label="Sezon"
+            value={selectedSezon}
+            onChange={(e) => setSelectedSezon(e.target.value)}
+            selectClassName="h-11 border-2 text-sm"
+            iconSize={16}
+          >
+            <option value="">Tumu</option>
+            {sezonOptions.map((sezon) => <option key={sezon} value={sezon}>{sezon}</option>)}
+          </FilterSelect>
+
+          <FilterSelect
+            label="Cinsiyet"
+            value={selectedCinsiyet}
+            onChange={(e) => setSelectedCinsiyet(e.target.value)}
+            selectClassName="h-11 border-2 text-sm"
+            iconSize={16}
+          >
+            <option value="">Tumu</option>
+            {cinsiyetOptions.map((cinsiyet) => <option key={cinsiyet} value={cinsiyet}>{cinsiyet}</option>)}
+          </FilterSelect>
+
+          <FilterSelect
+            label="Kategori"
+            value={selectedKategori}
+            onChange={(e) => setSelectedKategori(e.target.value)}
+            selectClassName="h-11 border-2 text-sm"
+            iconSize={16}
+          >
+            <option value="">Tumu</option>
+            {kategoriOptions.map((kategori) => <option key={kategori} value={kategori}>{kategori}</option>)}
+          </FilterSelect>
+
+          <div className="flex items-end">
+            <button
+              className="btn-secondary w-full justify-center"
+              onClick={() => {
+                setSelectedSezon('');
+                setSelectedCinsiyet('');
+                setSelectedKategori('');
+              }}
+            >
+              Filtreleri Temizle
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="table-shell text-sm">
