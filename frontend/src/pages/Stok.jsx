@@ -15,7 +15,7 @@ function StokDetayRow({ urun }) {
 
   return (
     <tr className="bg-white border-b border-gray-200">
-      <td colSpan={12} className="p-0">
+      <td colSpan={13} className="p-0">
         <div className="p-8 animate-in slide-in-from-top-2 duration-300">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             
@@ -113,10 +113,14 @@ export default function Stok() {
   const [selectedSezon, setSelectedSezon] = useState('');
   const [selectedCinsiyet, setSelectedCinsiyet] = useState('');
   const [selectedKategori, setSelectedKategori] = useState('');
+  const [selectedStokPeriod, setSelectedStokPeriod] = useState('30');
+  const [selectedStokDurum, setSelectedStokDurum] = useState('all');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['stok-analiz'],
-    queryFn: () => api.get('/stok/analiz').then(r => r.data)
+    queryKey: ['stok-analiz', selectedStokPeriod],
+    queryFn: () => api.get('/stok/analiz', {
+      params: { stok_period: selectedStokPeriod }
+    }).then(r => r.data)
   });
 
   const kpis = data?.kpis || {};
@@ -132,7 +136,12 @@ export default function Stok() {
       (u.marka && u.marka.toLowerCase().includes(search.toLowerCase()))) &&
     (!selectedSezon || u.sezon === selectedSezon) &&
     (!selectedCinsiyet || u.cinsiyet === selectedCinsiyet) &&
-    (!selectedKategori || u.kategori === selectedKategori)
+    (!selectedKategori || u.kategori === selectedKategori) &&
+    (
+      selectedStokDurum === 'all' ||
+      (selectedStokDurum === 'kritik' && u.oneri === 'Stok Tedariği') ||
+      (selectedStokDurum === 'fazla' && u.oneri === 'İndirim Uygula')
+    )
   );
 
   const handleExcelExport = () => {
@@ -146,11 +155,13 @@ export default function Stok() {
         { header: 'Sezon', value: 'sezon' },
         { header: 'Kategori', value: 'kategori' },
         { header: 'Toplam Stok', value: 'toplamStok' },
-        { header: 'Stok Gun', value: 'stokGun' },
-        { header: 'Satis Hiz', value: 'satisHiz' },
+        { header: 'Satilan Adet', value: 'satilanAdet' },
+        { header: 'Devir Hizi (Adet/Gun)', value: 'satisHiz' },
+        { header: 'Tukenme Gunu', value: 'stokGun' },
         { header: 'Beden Kirikligi Orani', value: (row) => (row.bedenKiriklikOrani > 0 ? `${row.bedenKiriklikOrani}%` : '-') },
         { header: 'Oneri', value: 'oneri' },
         { header: 'Maliyet', value: 'maliyet' },
+        { header: 'Son Satis Tarihi', value: (row) => (row.sonSatisTarihi ? new Date(row.sonSatisTarihi).toLocaleString('tr-TR') : '-') },
         { header: 'Guncelleme Saati', value: (row) => (row.guncellemeSaati ? new Date(row.guncellemeSaati).toLocaleString('tr-TR') : '-') },
       ],
     });
@@ -175,14 +186,14 @@ export default function Stok() {
         </div>
         
         <div className="panel text-center md:text-left p-5">
-          <div className="text-xs font-semibold tracking-wide uppercase text-gray-500 mb-2">Kritik Stok (&lt; 15 gün)</div>
+          <div className="text-xs font-semibold tracking-wide uppercase text-gray-500 mb-2">Kritik Stok (≤ 30 gün)</div>
           <div className="text-4xl font-semibold text-gray-900 mb-1">
             {isLoading ? <Loader2 className="animate-spin inline" /> : kpis.kritikStokSayisi}
           </div>
         </div>
         
         <div className="panel text-center md:text-left p-5">
-          <div className="text-xs font-semibold tracking-wide uppercase text-gray-500 mb-2">Stok Fazlası (&gt; 60 gün)</div>
+          <div className="text-xs font-semibold tracking-wide uppercase text-gray-500 mb-2">Stok Fazlası (≥ 90 gün)</div>
           <div className="text-4xl font-semibold text-gray-900 mb-1">
             {isLoading ? <Loader2 className="animate-spin inline" /> : kpis.stokFazlasiSayisi}
           </div>
@@ -197,7 +208,44 @@ export default function Stok() {
       </div>
 
       {/* Action Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-end gap-4 mt-6">
+      <div className="flex flex-col sm:flex-row sm:items-start items-center justify-end gap-4 mt-6">
+        <div className="flex flex-wrap items-center gap-2 sm:mr-auto">
+          <span className="text-sm text-gray-600 font-medium">Devir Hızı Periyodu:</span>
+          {[
+            { value: '7', label: '1 Hafta' },
+            { value: '30', label: '1 Ay' },
+            { value: '90', label: '3 Ay' },
+            { value: '365', label: '1 Yıl' },
+          ].map((p) => (
+            <button
+              key={p.value}
+              type="button"
+              className={`px-3 py-1.5 rounded-md text-xs font-medium border ${selectedStokPeriod === p.value ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+              onClick={() => setSelectedStokPeriod(p.value)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 sm:mr-auto sm:ml-4">
+          <span className="text-sm text-gray-600 font-medium">Stok Durumu:</span>
+          {[
+            { value: 'all', label: 'Hepsi' },
+            { value: 'kritik', label: 'Kritik Stok' },
+            { value: 'fazla', label: 'Stok Fazlası' },
+          ].map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              className={`px-3 py-1.5 rounded-md text-xs font-medium border ${selectedStokDurum === item.value ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+              onClick={() => setSelectedStokDurum(item.value)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
         <button className="btn-secondary" onClick={handleExcelExport} disabled={filteredUrunler.length === 0}>
           <FileSpreadsheet size={16} />
           Excel'e Aktar
@@ -275,16 +323,17 @@ export default function Stok() {
         <div className="overflow-x-hidden">
           <table className="w-full table-fixed text-left border-collapse">
             <colgroup>
-              <col className="w-[10%]" />
-              <col className="w-[8%]" />
-              <col className="w-[8%]" />
-              <col className="w-[8%]" />
-              <col className="w-[8%]" />
               <col className="w-[9%]" />
-              <col className="w-[10%]" />
-              <col className="w-[10%]" />
+              <col className="w-[7%]" />
+              <col className="w-[7%]" />
+              <col className="w-[7%]" />
+              <col className="w-[7%]" />
+              <col className="w-[7%]" />
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
+              <col className="w-[7%]" />
+              <col className="w-[7%]" />
               <col className="w-[9%]" />
-              <col className="w-[10%]" />
               <col className="w-[5%]" />
               <col className="w-[5%]" />
             </colgroup>
@@ -294,11 +343,13 @@ export default function Stok() {
                 <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Marka</th>
                 <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Kategori</th>
                 <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Toplam Stok</th>
-                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Stok Gün</th>
-                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Satış Hız</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Satılan Adet</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Devir Hızı</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Tükenme Günü</th>
                 <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Beden Kırıklığı Or.</th>
                 <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Öneri</th>
                 <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Maliyet</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Son Satış Tarihi</th>
                 <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Güncelleme Saati</th>
                 <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 text-center break-words">Fotoğraf</th>
                 <th className="px-2 py-2 text-[11px] leading-tight font-semibold text-center break-words">Detay</th>
@@ -307,7 +358,7 @@ export default function Stok() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={12} className="text-center py-16">
+                  <td colSpan={13} className="text-center py-16">
                     <Loader2 size={32} className="animate-spin text-gray-400 mx-auto" />
                   </td>
                 </tr>
@@ -319,13 +370,17 @@ export default function Stok() {
                       <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.marka || '-'}</td>
                       <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.kategori || '-'}</td>
                       <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.toplamStok}</td>
-                      <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.stokGun}</td>
+                      <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.satilanAdet || 0}</td>
                       <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.satisHiz}</td>
+                      <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.stokGun}</td>
                       <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.bedenKiriklikOrani > 0 ? `%${u.bedenKiriklikOrani}` : '-'}</td>
                       <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">
                         {u.oneri !== '-' ? <span className="bg-gray-100 px-2 py-1 rounded text-xs border border-gray-200">{u.oneri}</span> : '-'}
                       </td>
                       <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.maliyet > 0 ? Math.round(u.maliyet) : '-'}</td>
+                      <td className="px-2 py-2 text-xs align-top border-r border-gray-200 text-gray-500 break-words">
+                        {u.sonSatisTarihi ? new Date(u.sonSatisTarihi).toLocaleString('tr-TR') : '-'}
+                      </td>
                       <td className="px-2 py-2 text-xs align-top border-r border-gray-200 text-gray-500 break-words">
                         {u.guncellemeSaati ? new Date(u.guncellemeSaati).toLocaleString('tr-TR') : '-'}
                       </td>
@@ -351,7 +406,7 @@ export default function Stok() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={12} className="text-center py-12 text-gray-400">Aranan kriterlere uygun ürün bulunamadı.</td>
+                  <td colSpan={13} className="text-center py-12 text-gray-400">Aranan kriterlere uygun ürün bulunamadı.</td>
                 </tr>
               )}
             </tbody>

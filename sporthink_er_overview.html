@@ -1,0 +1,314 @@
+
+<style>
+#erd-main { overflow-x: auto; }
+#erd-main svg { max-width: 100%; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 4px; font-size: 12px; color: var(--color-text-secondary); }
+.legend-item { display: flex; align-items: center; gap: 5px; }
+.legend-box { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--color-border-secondary); }
+.lb-master { background: #E1F5EE; }
+.lb-product { background: #E6F1FB; }
+.lb-pricing { background: #FAEEDA; }
+.lb-audit   { background: #EEEDFE; }
+.lb-junction { background: #F1EFE8; border: 2px dashed #888; }
+.diagram-label { font-size: 13px; font-weight: 500; color: var(--color-text-secondary); margin-bottom: 6px; }
+</style>
+
+<div class="legend">
+  <span class="legend-item"><span class="legend-box lb-master"></span>Master data</span>
+  <span class="legend-item"><span class="legend-box lb-product"></span>Ürün kataloğu</span>
+  <span class="legend-item"><span class="legend-box lb-pricing"></span>Fiyatlandırma &amp; operasyon</span>
+  <span class="legend-item"><span class="legend-box lb-audit"></span>Audit / loglama</span>
+  <span class="legend-item"><span class="legend-box lb-junction"></span>M:N bağlantı tablosu</span>
+  <span class="legend-item" style="margin-left:8px">PK = primary key &nbsp;|&nbsp; FK = foreign key &nbsp;|&nbsp; UQ = unique</span>
+</div>
+
+<div class="diagram-label">Genel bakış — tüm tablolar</div>
+<div id="erd-main"></div>
+
+<script type="module">
+import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+await document.fonts.ready;
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'base',
+  fontFamily: '"Anthropic Sans", sans-serif',
+  themeVariables: {
+    darkMode: dark,
+    fontSize: '12px',
+    fontFamily: '"Anthropic Sans", sans-serif',
+    lineColor: dark ? '#9c9a92' : '#73726c',
+    textColor: dark ? '#c2c0b6' : '#3d3d3a',
+    primaryColor: dark ? '#1a2e20' : '#E1F5EE',
+    primaryBorderColor: dark ? '#1D9E75' : '#0F6E56',
+    secondaryColor: dark ? '#0c1f35' : '#E6F1FB',
+    tertiaryColor: dark ? '#2a1f05' : '#FAEEDA',
+  },
+  er: { diagramPadding: 24, layoutDirection: 'TB', minEntityWidth: 120 }
+});
+
+const diagram = `erDiagram
+  %% ─── MASTER DATA ───────────────────────────────────────────────
+  kullanicilar {
+    int kullanici_id PK
+    string ad_soyad
+    string eposta
+    string sifre_hash
+    datetime olusturma_tarihi
+  }
+  roller {
+    int rol_id PK
+    string rol_adi
+    string aciklama
+  }
+  kategoriler {
+    int kategori_id PK
+    string kategori_adi
+    decimal kar_beklentisi
+  }
+  marka {
+    int marka_id PK
+    string marka_adi
+  }
+  sezonlar {
+    int sezon_id PK
+    string sezon_adi
+    date baslangic_tarihi
+    date bitis_tarihi
+  }
+  beden {
+    int beden_id PK
+    string beden_adi
+  }
+  cinsiyetler {
+    int cinsiyet_id PK
+    string cinsiyet_adi
+  }
+  kanallar {
+    int kanal_id PK
+    string kanal_adi
+    string kanal_url
+    string kanal_sahibi
+    datetime olusturma_tarihi
+  }
+
+  %% ─── M:N JUNCTION TABLES ────────────────────────────────────────
+  kullanici_rol {
+    int kullanici_rol_id PK
+    int kullanici_id FK
+    int rol_id FK
+    string UQ_kullanici_rol "UQ(kullanici_id,rol_id)"
+  }
+  kategori_sezon {
+    int kategori_sezon_id PK
+    int kategori_id FK
+    int sezon_id FK
+    string UQ_kat_sez "UQ(kategori_id,sezon_id)"
+  }
+  urun_cinsiyet {
+    int urun_cinsiyet_id PK
+    int urun_id FK
+    int cinsiyet_id FK
+    string UQ_urun_cins "UQ(urun_id,cinsiyet_id)"
+  }
+  kanal_urun {
+    int kanal_urun_id PK
+    int kanal_id FK
+    int urun_id FK
+    decimal web_liste_fiyati
+    decimal web_indirim_fiyati
+    decimal pazaryeri_liste_fiyat
+    decimal pazaryeri_indirim_fiyat
+    string UQ_kanal_urun "UQ(kanal_id,urun_id)"
+  }
+
+  %% ─── PRODUCT CATALOG ────────────────────────────────────────────
+  urunler {
+    int urun_id PK
+    string barkod UQ
+    string stok_kodu UQ
+    string urun_adi
+    int kategori_id FK
+    int marka_id FK
+    decimal maliyet
+    string resim_url
+    datetime olusturma_tarihi
+    datetime guncelleme_tarihi
+  }
+  stok {
+    int stok_id PK
+    int urun_id FK
+    int beden_id FK
+    int stok_miktari
+    decimal stok_katsayisi
+    datetime guncelleme_tarihi
+    string UQ_stok "UQ(urun_id,beden_id)"
+  }
+
+  %% ─── PRICING & OPERATIONS ───────────────────────────────────────
+  fiyatlandirma_kurallari {
+    int kural_id PK
+    int kanal_id FK
+    int kategori_id FK
+    decimal komisyon_orani
+    decimal lojistik_gideri
+    decimal kargo_ucreti
+    decimal max_indirim
+    decimal min_kar
+    decimal rekabet_katsayisi
+    int aylik_satis_hedefi
+    int haftalik_satis_hedefi
+    bool aktiflik_durumu
+    date gecerlilik_baslangic
+    date gecerlilik_bitis
+  }
+  rakipler {
+    int rakip_id PK
+    string rakip_adi
+    string rakip_url
+  }
+  rakip_fiyatlar {
+    int rakip_fiyat_id PK
+    int urun_id FK
+    int rakip_id FK
+    int kanal_id FK
+    int beden_id FK
+    decimal fiyat
+    datetime veri_kazima_zamani
+  }
+  fiyat_onerileri {
+    int oneri_id PK
+    int kanal_urun_id FK
+    decimal mevcut_fiyat
+    decimal onerilen_fiyat
+    string neden
+    string durum
+    int onaylayan_kullanici_id FK
+    datetime onay_tarihi
+    datetime olusturma_tarihi
+  }
+  fiyat_gecmisi {
+    int gecmis_id PK
+    int kanal_urun_id FK
+    decimal eski_fiyat
+    decimal yeni_fiyat
+    int degistiren_kullanici_id FK
+    string degisim_nedeni
+    datetime degisim_tarihi
+  }
+  alertler {
+    int alert_id PK
+    int kanal_urun_id FK
+    string alert_tipi
+    string mesaj
+    string durum
+    datetime olusturma_tarihi
+    datetime cozulme_tarihi
+    int cozen_kullanici_id FK
+  }
+  satislar {
+    int satis_id PK
+    int kanal_urun_id FK
+    int satis_miktari
+    decimal birim_fiyat
+    decimal maliyet_snapshot
+    datetime satis_tarihi
+  }
+  kampanya_planlari {
+    int kampanya_id PK
+    int kanal_id FK
+    int sezon_id FK
+    string kampanya_adi
+    date baslangic_tarihi
+    date bitis_tarihi
+    decimal hedef_indirim_orani
+    decimal hedef_karlilik
+  }
+
+  %% ─── AUDIT / LOG ────────────────────────────────────────────────
+  islem_log {
+    int islem_log_id PK
+    int kullanici_id FK
+    string islem_tipi
+    string tablo_adi
+    int kayit_id
+    string aciklama
+    string ip_adresi
+    datetime islem_tarihi
+  }
+  hata_log {
+    int hata_log_id PK
+    string hata_tipi
+    string hata_mesaji
+    string yigin_izi
+    string endpoint
+    datetime hata_tarihi
+  }
+
+  %% ─── RELATIONSHIPS ──────────────────────────────────────────────
+  kullanicilar ||--o{ kullanici_rol : "sahiptir"
+  roller       ||--o{ kullanici_rol : "atanir"
+
+  kategoriler  ||--o{ kategori_sezon : "bulunur"
+  sezonlar     ||--o{ kategori_sezon : "kapsar"
+
+  urunler      ||--o{ urun_cinsiyet  : "hedefler"
+  cinsiyetler  ||--o{ urun_cinsiyet  : "kullanilir"
+
+  kanallar     ||--o{ kanal_urun     : "listeler"
+  urunler      ||--o{ kanal_urun     : "yer-alir"
+
+  kategoriler  ||--o{ urunler        : "siniflandirir"
+  marka        ||--o{ urunler        : "uretir"
+
+  urunler      ||--o{ stok           : "takip-edilir"
+  beden        ||--o{ stok           : "boyutlandirir"
+
+  kanallar     ||--o{ fiyatlandirma_kurallari : "belirler"
+  kategoriler  ||--o{ fiyatlandirma_kurallari : "uygulanir"
+
+  urunler      ||--o{ rakip_fiyatlar : "izlenir"
+  rakipler     ||--o{ rakip_fiyatlar : "saglar"
+  kanallar     ||--o{ rakip_fiyatlar : "kanalinda"
+  beden        ||--o{ rakip_fiyatlar : "bedeni"
+
+  kanal_urun   ||--o{ fiyat_onerileri : "onerisi"
+  kanal_urun   ||--o{ fiyat_gecmisi   : "gecmisi"
+  kanal_urun   ||--o{ alertler        : "uyarisi"
+  kanal_urun   ||--o{ satislar        : "satisi"
+
+  kullanicilar ||--o{ fiyat_onerileri : "onaylar"
+  kullanicilar ||--o{ fiyat_gecmisi   : "degistirir"
+  kullanicilar ||--o{ alertler        : "cozer"
+  kullanicilar ||--o{ islem_log       : "kaydeder"
+
+  kanallar     ||--o{ kampanya_planlari : "planlar"
+  sezonlar     ||--o{ kampanya_planlari : "doneminde"
+`;
+
+const { svg } = await mermaid.render('erd-main-svg', diagram);
+document.getElementById('erd-main').innerHTML = svg;
+
+document.querySelectorAll('#erd-main svg .node').forEach(node => {
+  const firstPath = node.querySelector('path[d]');
+  if (!firstPath) return;
+  const d = firstPath.getAttribute('d');
+  const nums = d.match(/-?[\d.]+/g)?.map(Number);
+  if (!nums || nums.length < 8) return;
+  const xs = [nums[0], nums[2], nums[4], nums[6]];
+  const ys = [nums[1], nums[3], nums[5], nums[7]];
+  const x = Math.min(...xs), y = Math.min(...ys);
+  const w = Math.max(...xs) - x, h = Math.max(...ys) - y;
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', x); rect.setAttribute('y', y);
+  rect.setAttribute('width', w); rect.setAttribute('height', h);
+  rect.setAttribute('rx', '8');
+  for (const a of ['fill', 'stroke', 'stroke-width', 'class', 'style']) {
+    if (firstPath.hasAttribute(a)) rect.setAttribute(a, firstPath.getAttribute(a));
+  }
+  firstPath.replaceWith(rect);
+});
+document.querySelectorAll('#erd-main svg .row-rect-odd path, #erd-main svg .row-rect-even path').forEach(p => {
+  p.setAttribute('stroke', 'none');
+});
+</script>

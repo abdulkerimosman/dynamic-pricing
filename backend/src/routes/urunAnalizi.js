@@ -2,9 +2,120 @@
 
 const { sequelize, Stok, FiyatlandirmaKurali } = require('../models');
 const pricingEngine = require('../services/pricingEngine');
+const XLSX = require('xlsx');
+
+function normalizeHeader(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/ı/g, 'i')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c');
+}
+
+function parseNum(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = parseFloat(String(value).replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function findByAliases(row, aliases) {
+  for (const alias of aliases) {
+    const value = row[normalizeHeader(alias)];
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return value;
+    }
+  }
+  return null;
+}
 
 module.exports = async function (fastify, opts) {
+  fastify.post('/kullanici-fiyat-import', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const file = await request.file();
+    if (!file) {
+      return reply.code(400).send({ error: 'Excel dosyasi gerekli (file).' });
+    }
+
+    const buffer = await file.toBuffer();
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const firstSheet = workbook.SheetNames[0];
+
+    if (!firstSheet) {
+      return reply.code(400).send({ error: 'Excel dosyasi bos veya uygun sayfa bulunamadi.' });
+    }
+
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], {
+      defval: '',
+      raw: false,
+    }).map((row) => {
+      const normalized = {};
+      Object.keys(row).forEach((key) => {
+        normalized[normalizeHeader(key)] = row[key];
+      });
+      return normalized;
+    });
+
+    if (!rows.length) {
+      return reply.code(400).send({ error: 'Excel dosyasinda satir bulunamadi.' });
+    }
+
+    const mappings = [];
+    const errors = [];
+
+    rows.forEach((row, index) => {
+      const rowNo = index + 2;
+      const stokKoduRaw = findByAliases(row, ['stok_kodu', 'stok kodu', 'stokkodu', 'sku']);
+      const userPriceRaw = findByAliases(row, [
+        'kullanici_onerilen_fiyat',
+        'kullanici fiyat',
+        'kullanici_fiyati',
+        'user_price',
+        'onerilen_fiyat_kullanici',
+        'fiyat',
+      ]);
+
+      const stokKodu = String(stokKoduRaw || '').trim();
+      const userPrice = parseNum(userPriceRaw);
+
+      if (!stokKodu) {
+        errors.push({ row: rowNo, error: 'Stok kodu bulunamadi.' });
+        return;
+      }
+      if (!Number.isFinite(userPrice) || userPrice <= 0) {
+        errors.push({ row: rowNo, stokKodu, error: 'Kullanici fiyat alani gecersiz.' });
+        return;
+      }
+
+      mappings.push({
+        stokKodu,
+        userOnerilenFiyat: Math.round(userPrice * 100) / 100,
+      });
+    });
+
+    const unique = [];
+    const seen = new Set();
+    for (const item of mappings) {
+      const key = item.stokKodu.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(item);
+    }
+
+    return {
+      totalRows: rows.length,
+      mappedCount: unique.length,
+      errors,
+      mappings: unique,
+    };
+  });
+
   fastify.get('/', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const thresholdInput = parseFloat(request.query.esik_tl);
+    const esikTl = Number.isFinite(thresholdInput) && thresholdInput > 0 ? thresholdInput : 200;
     
     // Fetch all products with their associated data for the grid
     const urunlerList = await sequelize.query(`
@@ -12,6 +123,7 @@ module.exports = async function (fastify, opts) {
         u.urun_id,
         u.stok_kodu as stokKodu,
         u.maliyet,
+        u.kategori_id as kategoriId,
         k.kategori_adi as kategori,
         (
           SELECT GROUP_CONCAT(DISTINCT s.sezon_adi ORDER BY s.sezon_adi SEPARATOR ', ')
@@ -31,8 +143,11 @@ module.exports = async function (fastify, opts) {
         m.marka_adi as marka,
         u.resim_url as fotograf,
         u.guncelleme_tarihi as guncellemeSaati,
+        ku.kanal_urun_id as kanalUrunId,
+        ku.kanal_id as kanalId,
         ku.web_liste_fiyati as listeFiyat,
         ku.web_indirim_fiyati as indirimliFiyat,
+        ku.pazaryeri_indirim_fiyat as pazaryeriIndirimliFiyat,
         (
           SELECT SUM(stok_miktari) 
           FROM stok s 
@@ -55,21 +170,7 @@ module.exports = async function (fastify, opts) {
           SELECT min(rf3.fiyat) 
           FROM rakip_fiyatlar rf3 
           WHERE rf3.urun_id = u.urun_id
-        ) as enUcuzRakipFiyati,
-        (
-          SELECT fo.onerilen_fiyat 
-          FROM fiyat_onerileri fo 
-          WHERE fo.kanal_urun_id = ku.kanal_urun_id 
-          ORDER BY fo.olusturma_tarihi DESC 
-          LIMIT 1
-        ) as onerilenFiyat,
-        (
-          SELECT fo.olusturma_tarihi 
-          FROM fiyat_onerileri fo 
-          WHERE fo.kanal_urun_id = ku.kanal_urun_id 
-          ORDER BY fo.olusturma_tarihi DESC 
-          LIMIT 1
-        ) as oneriGuncellemeSaati
+        ) as enUcuzRakipFiyati
       FROM urunler u
       LEFT JOIN kategoriler k ON u.kategori_id = k.kategori_id
       LEFT JOIN marka m ON u.marka_id = m.marka_id
@@ -82,7 +183,7 @@ module.exports = async function (fastify, opts) {
     let fiyat_dezavantajli_urun = 0;
     let kritik_farki_olan_urunler = 0;
 
-    const formattedList = urunlerList.map(item => {
+    const formattedList = await Promise.all(urunlerList.map(async (item) => {
       toplam_urun++;
 
       // Kâr Oranı = ((İndirimli Fiyat - Maliyet) / Maliyet) * 100
@@ -91,25 +192,115 @@ module.exports = async function (fastify, opts) {
         karOrani = ((item.indirimliFiyat - item.maliyet) / item.maliyet) * 100;
       }
 
-      // KPIs logic
-      if (item.rakipFiyatOrtalamasi > 0) {
-        if (item.indirimliFiyat < item.rakipFiyatOrtalamasi) {
+      const bizimFiyat = parseFloat(item.indirimliFiyat || 0);
+      const enUcuzRakipFiyati = parseFloat(item.enUcuzRakipFiyati || 0);
+
+      // KPI rules based on cheapest competitor and absolute TL threshold.
+      if (enUcuzRakipFiyati > 0 && bizimFiyat > 0) {
+        const delta = bizimFiyat - enUcuzRakipFiyati;
+
+        // Avantajli: cheaper but not excessively cheaper than threshold band.
+        if (delta < 0 && Math.abs(delta) <= esikTl) {
           fiyat_avantajli_urun++;
-        } else if (item.indirimliFiyat > item.rakipFiyatOrtalamasi) {
+        }
+
+        // Dezavantajli: any positive difference is actionable.
+        if (delta > 0) {
           fiyat_dezavantajli_urun++;
         }
-      }
 
-      // Kritik fark: en ucuz rakip bizim fiyattan %20 daha ucuz ise
-      if (item.enUcuzRakipFiyati > 0 && item.indirimliFiyat > 0) {
-        const diff = ((item.indirimliFiyat - item.enUcuzRakipFiyati) / item.enUcuzRakipFiyati) * 100;
-        if (diff >= 20) {
+        // Kritik fark: we are at least threshold TL more expensive.
+        if (delta >= esikTl) {
           kritik_farki_olan_urunler++;
         }
       }
 
       const maliyetNum = parseFloat(item.maliyet || 0);
-      const onerilenFiyatNum = parseFloat(item.onerilenFiyat || 0);
+      
+      // ─── Calculate real-time suggested price (not stale from DB) ───
+      let onerilenFiyatNum = 0;
+      try {
+        // Fetch current stok records and kural for this product
+        const [stoklar, kurals, kategoriData] = await Promise.all([
+          Stok.findAll({ where: { urun_id: item.urun_id } }),
+          FiyatlandirmaKurali.findAll({
+            where: {
+              kanal_id: item.kanalId,
+              kategori_id: item.kategoriId,
+              aktiflik_durumu: true,
+            },
+            limit: 1,
+          }),
+          require('../models').sequelize.query(`
+            SELECT kar_beklentisi FROM kategoriler WHERE kategori_id = ?
+          `, { replacements: [item.kategoriId], type: require('../models').sequelize.QueryTypes.SELECT }),
+        ]);
+
+        // Build kompetitor array with 70%+ size filtering (same as detail view)
+        const rakipSql = await require('../models').sequelize.query(`
+          SELECT 
+            r.rakip_adi as satici,
+            MAX(rf.fiyat) as fiyat,
+            COUNT(rf.beden_id) as dbAktifBeden
+          FROM rakip_fiyatlar rf
+          JOIN rakipler r ON rf.rakip_id = r.rakip_id
+          WHERE rf.urun_id = ?
+          GROUP BY r.rakip_id, r.rakip_adi
+        `, { replacements: [item.urun_id], type: require('../models').sequelize.QueryTypes.SELECT });
+
+        const toplamBedenSql = await require('../models').sequelize.query(`
+          SELECT COUNT(DISTINCT beden_id) as total FROM stok WHERE urun_id = ?
+        `, { replacements: [item.urun_id], type: require('../models').sequelize.QueryTypes.SELECT });
+        const productTotalSizes = (toplamBedenSql[0]?.total) || 5;
+
+        const rakipler = rakipSql.map(r => {
+          const hasRealSizes = parseInt(r.dbAktifBeden || 0) > 0;
+          const aktifBeden = hasRealSizes ? parseInt(r.dbAktifBeden) : Math.floor(Math.random() * 8) + 1;
+          const toplamPlanlananBeden = hasRealSizes ? Math.max(productTotalSizes, aktifBeden) : (aktifBeden + Math.floor(Math.random() * 4));
+          const pasifBeden = toplamPlanlananBeden - aktifBeden;
+          const bedenOrani = Math.round((aktifBeden / toplamPlanlananBeden) * 100);
+          
+          return {
+            satici: r.satici,
+            fiyat: parseFloat(r.fiyat),
+            aktifBeden,
+            pasifBeden,
+            bedenOrani,
+          };
+        });
+
+        const gecerliRakipler = rakipler.filter(r => r.bedenOrani >= 70);
+        const rakipPreices = gecerliRakipler.map(r => r.fiyat);
+
+        const defaultKural = {
+          komisyon_orani: 0,
+          lojistik_gideri: 0,
+          kargo_ucreti: 0,
+          max_indirim: 0.40,
+          min_kar: 0.10,
+          rekabet_katsayisi: 1.05,
+        };
+
+        // Call pricing engine with real data
+        const hesapSonucu = pricingEngine.compute({
+          urun: {
+            maliyet: maliyetNum,
+            Kategori: { kar_beklentisi: parseFloat(kategoriData[0]?.kar_beklentisi ?? 0.45) },
+          },
+          kanalUrun: {
+            web_indirim_fiyati: item.indirimliFiyat,
+            pazaryeri_indirim_fiyat: item.pazaryeriIndirimliFiyat,
+          },
+          kural: kurals[0] || defaultKural,
+          rakipFiyatlar: rakipPreices.map((fiyat) => ({ fiyat })),
+          stoklar,
+        });
+
+        onerilenFiyatNum = parseFloat(hesapSonucu.onerilenFiyat || 0);
+      } catch (err) {
+        console.error(`Pricing calc failed for ${item.stokKodu}:`, err.message);
+        onerilenFiyatNum = maliyetNum * 1.3; // Fallback to 30% margin
+      }
 
       // Karlılık İhlali: If recommended price is less than cost
       let karlilikIhlali = 'Yok';
@@ -120,7 +311,7 @@ module.exports = async function (fastify, opts) {
       }
 
       // Clean up dates
-      const lastUpdate = item.oneriGuncellemeSaati || item.guncellemeSaati;
+      const lastUpdate = item.guncellemeSaati;
       const formattedDate = lastUpdate ? new Intl.DateTimeFormat('tr-TR', {
         day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
       }).format(new Date(lastUpdate)) : '-';
@@ -131,6 +322,7 @@ module.exports = async function (fastify, opts) {
         listeFiyat: parseFloat(item.listeFiyat || 0),
         indirimliFiyat: parseFloat(item.indirimliFiyat || 0),
         rakipFiyatOrtalamasi: parseFloat(item.rakipFiyatOrtalamasi || 0),
+        enUcuzRakipFiyati: enUcuzRakipFiyati,
         karOrani: karOrani,
         onerilenFiyat: onerilenFiyatNum,
         guncellemeSaati: formattedDate,
@@ -143,29 +335,30 @@ module.exports = async function (fastify, opts) {
         cinsiyet: item.cinsiyet || 'Unisex',
         karlilikIhlali: karlilikIhlali
       };
-    });
+    }));
 
     // Logical order for actionability:
     // 1) Profitability violations first
-    // 2) Biggest price disadvantage vs competitor average
+    // 2) Biggest price disadvantage vs cheapest competitor (TL delta)
     // 3) Then stable by stock code
     const sortedFormattedList = [...formattedList].sort((a, b) => {
       const ihlalRankA = a.karlilikIhlali === 'Var' ? 0 : 1;
       const ihlalRankB = b.karlilikIhlali === 'Var' ? 0 : 1;
       if (ihlalRankA !== ihlalRankB) return ihlalRankA - ihlalRankB;
 
-      const aDisadvantage = a.rakipFiyatOrtalamasi > 0
-        ? ((a.indirimliFiyat - a.rakipFiyatOrtalamasi) / a.rakipFiyatOrtalamasi) * 100
+      const aDeltaTl = (a.enUcuzRakipFiyati > 0 && a.indirimliFiyat > 0)
+        ? (a.indirimliFiyat - a.enUcuzRakipFiyati)
         : -Infinity;
-      const bDisadvantage = b.rakipFiyatOrtalamasi > 0
-        ? ((b.indirimliFiyat - b.rakipFiyatOrtalamasi) / b.rakipFiyatOrtalamasi) * 100
+      const bDeltaTl = (b.enUcuzRakipFiyati > 0 && b.indirimliFiyat > 0)
+        ? (b.indirimliFiyat - b.enUcuzRakipFiyati)
         : -Infinity;
-      if (aDisadvantage !== bDisadvantage) return bDisadvantage - aDisadvantage;
+      if (aDeltaTl !== bDeltaTl) return bDeltaTl - aDeltaTl;
 
       return String(a.stokKodu || '').localeCompare(String(b.stokKodu || ''), 'tr');
     });
 
     return {
+      esik_tl: esikTl,
       kpis: {
         toplam_urun,
         fiyat_avantajli_urun,

@@ -103,6 +103,10 @@ dynamic-pricing/
   - [x] Login: ahmet@sporthink.com.tr / password
 - [ ] Excel export (Bulk actions — deferred)
 
+Current documentation work:
+- [x] Created a comprehensive system reference covering dashboard KPIs, data sources, table relationships, and UI-to-database flow.
+- [ ] Next step will be to use that reference to rebuild the database from the UI in the correct dependency order.
+
 ---
 
 ## Key Decisions Log
@@ -229,3 +233,4 @@ Step 3 — Guardrails:
 | 2026-04-10 | Session 2 | Phase 3 completion: Finished Product Analysis detailed view, Campaign Module (What-If + komisyon kademeleri), Stok Supply Module (time-series charts with confidence intervals). |
 | 2026-04-10 | Session 3 | Phase 5 — Bug Fixes & Polish: Fixed price approval (audit log + correct price field), fixed kampanya Evet→DB write, fixed \${channelWhere} SQL interpolation in all 3 dashboard grids, rebuilt dashboard chart to render per-channel lines, fixed % cap on ciro hedef, rebuilt Ayarlar page to match Figma, full reseed with 16-month realistic data (2025–Apr 2026), sidebar cleanup (removed Alertler + Rakipler), added red Uyarı section label on dashboard. |
 | 2026-04-14 | Session 4 | UI consistency pass completed across all pages (white/red/black design system, unified tables/forms/cards/buttons). Added `backend/seed_showcase.js` and `npm run seed:showcase` to generate demo-ready scenario data: clear low-stock + overstock segments, competitor pressure products, pending/approved/rejected suggestion mix, open/closed alerts, and campaign plans for end-to-end app walkthroughs. |
+| 2026-04-22 | Session 5 | Created `SYSTEM_DATA_REFERENCE.md` documenting dashboard KPIs, data sources, table relationships, page flows, and the UI-driven population order for the database reset/reseed plan. |

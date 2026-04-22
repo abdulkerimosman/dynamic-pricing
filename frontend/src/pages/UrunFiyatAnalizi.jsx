@@ -1,4 +1,4 @@
-import { useState, Fragment } from 'react';
+import { useMemo, useRef, useState, Fragment } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Search, Filter, Eye, Loader2, FileSpreadsheet, ExternalLink, CheckCircle } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
@@ -16,7 +16,7 @@ function StatCard({ value, title }) {
   );
 }
 
-function UrunDetayRow({ urun }) {
+function UrunDetayRow({ urun, userOnerilenFiyat }) {
   const queryClient = useQueryClient();
   const [approved, setApproved] = useState(false);
 
@@ -28,7 +28,7 @@ function UrunDetayRow({ urun }) {
   if (isLoading) {
     return (
       <tr>
-        <td colSpan={15} className="py-10 bg-white border-b border-gray-200">
+        <td colSpan={17} className="py-10 bg-white border-b border-gray-200">
           <Loader2 className="animate-spin text-gray-400 mx-auto" size={24} />
         </td>
       </tr>
@@ -39,7 +39,7 @@ function UrunDetayRow({ urun }) {
     const errorMessage = error?.response?.data?.error || error?.message || 'Sunucu hatası veya veri eksik';
     return (
       <tr>
-        <td colSpan={15} className="py-10 bg-red-50 text-center text-red-500 border-b border-red-200">
+        <td colSpan={17} className="py-10 bg-red-50 text-center text-red-500 border-b border-red-200">
           Detay verisi yüklenemedi. ({errorMessage})
         </td>
       </tr>
@@ -49,13 +49,19 @@ function UrunDetayRow({ urun }) {
   const { fiyatGecmisi = [], algoritmaDetayi = {}, rakipler = [] } = data;
   const alg = algoritmaDetayi || {};
   const hasPendingSuggestion = Boolean(data?.oneriId);
+  const systemPrice = Number(alg.onerilenFiyat || urun.onerilenFiyat || 0);
+  const systemProfitability = Number(alg.yeniKarlilik || 0);
+  const userProfitability = userOnerilenFiyat > 0 && urun.maliyet > 0
+    ? ((userOnerilenFiyat - urun.maliyet) / urun.maliyet) * 100
+    : null;
+  const userDiff = userOnerilenFiyat > 0 ? userOnerilenFiyat - systemPrice : null;
   const approvalUnavailableReason = hasPendingSuggestion
     ? ''
     : 'Bu ürün için beklemede fiyat önerisi bulunamadı. Önce ürün için öneri oluşturulmalı.';
 
   return (
     <tr className="bg-white border-b border-gray-200">
-      <td colSpan={15} className="p-0">
+      <td colSpan={17} className="p-0">
         <div className="p-8 animate-in slide-in-from-top-2 duration-300">
           
           <div className="flex flex-col lg:flex-row gap-10">
@@ -75,6 +81,12 @@ function UrunDetayRow({ urun }) {
               <div className="bg-red-50 text-red-700 px-6 py-3 rounded text-2xl font-semibold inline-block border border-red-200">
                 Önerilen Fiyat - {alg.onerilenFiyat}
               </div>
+
+              {userOnerilenFiyat > 0 && (
+                <div className="bg-blue-50 text-blue-700 px-6 py-3 rounded text-2xl font-semibold inline-block border border-blue-200 ml-0 lg:ml-2 mt-2 lg:mt-0">
+                  Kullanıcı Fiyatı - {userOnerilenFiyat}
+                </div>
+              )}
 
               <div className="space-y-4 text-sm text-gray-700 bg-white p-6 rounded border border-gray-200">
                 <p className="font-semibold text-gray-900 border-b pb-2">Öneri Nedeni (Algoritma Detayları):</p>
@@ -102,6 +114,33 @@ function UrunDetayRow({ urun }) {
                     <span className="text-[10px] text-red-700 mt-1 uppercase">Yeni Kârlılık</span>
                   </div>
                 </div>
+
+                {userOnerilenFiyat > 0 && (
+                  <div className="mt-4 p-4 bg-blue-50 rounded border border-blue-200 text-sm text-blue-900">
+                    <div className="font-semibold mb-2">Sistem vs Kullanıcı Karşılaştırması</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="bg-white rounded border border-blue-100 p-3">
+                        <div className="text-xs text-gray-500">Sistem Önerilen Fiyat</div>
+                        <div className="text-lg font-semibold">{systemPrice > 0 ? systemPrice.toFixed(2) : '-'}</div>
+                      </div>
+                      <div className="bg-white rounded border border-blue-100 p-3">
+                        <div className="text-xs text-gray-500">Kullanıcı Önerilen Fiyat</div>
+                        <div className="text-lg font-semibold">{userOnerilenFiyat.toFixed(2)}</div>
+                      </div>
+                      <div className="bg-white rounded border border-blue-100 p-3">
+                        <div className="text-xs text-gray-500">Sistem Yeni Kârlılık</div>
+                        <div className="text-lg font-semibold">%{systemProfitability.toFixed(2)}</div>
+                      </div>
+                      <div className="bg-white rounded border border-blue-100 p-3">
+                        <div className="text-xs text-gray-500">Kullanıcı Yeni Kârlılık</div>
+                        <div className="text-lg font-semibold">{userProfitability !== null ? `%${userProfitability.toFixed(2)}` : '-'}</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-xs">
+                      Fiyat farkı: <span className="font-semibold">{userDiff !== null ? `${userDiff >= 0 ? '+' : ''}${userDiff.toFixed(2)}` : '-'}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -214,10 +253,17 @@ export default function UrunFiyatAnalizi() {
   const [selectedSezon, setSelectedSezon] = useState('');
   const [selectedCinsiyet, setSelectedCinsiyet] = useState('');
   const [selectedKategori, setSelectedKategori] = useState('');
+  const [priceThresholdTl, setPriceThresholdTl] = useState('200');
+  const [importingUserPrice, setImportingUserPrice] = useState(false);
+  const [userPriceMap, setUserPriceMap] = useState({});
+  const [importSummary, setImportSummary] = useState(null);
+  const fileInputRef = useRef(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['urun-analizi'],
-    queryFn: () => api.get('/urun-analizi').then(r => r.data)
+    queryKey: ['urun-analizi', priceThresholdTl],
+    queryFn: () => api.get('/urun-analizi', {
+      params: { esik_tl: priceThresholdTl }
+    }).then(r => r.data)
   });
 
   const kpis = data?.kpis || {};
@@ -237,6 +283,17 @@ export default function UrunFiyatAnalizi() {
     return searchMatch && sezonMatch && cinsiyetMatch && kategoriMatch;
   });
 
+  const mergedUrunler = useMemo(() => {
+    return filteredUrunler.map((item) => {
+      const key = String(item.stokKodu || '').toLowerCase();
+      const userOnerilenFiyat = userPriceMap[key] ?? null;
+      return {
+        ...item,
+        userOnerilenFiyat,
+      };
+    });
+  }, [filteredUrunler, userPriceMap]);
+
   const handleExcelExport = () => {
     exportRowsToExcelCsv({
       rows: filteredUrunler,
@@ -253,12 +310,47 @@ export default function UrunFiyatAnalizi() {
         { header: 'Indirimli Fiyat', value: 'indirimliFiyat' },
         { header: 'Rakip Fiyat Ortalamasi', value: 'rakipFiyatOrtalamasi' },
         { header: 'En Ucuz Satici', value: 'enUcuzSatici' },
+        { header: 'En Ucuz Rakip Fiyati', value: 'enUcuzRakipFiyati' },
         { header: 'Onerilen Fiyat', value: 'onerilenFiyat' },
+        { header: 'Kullanici Onerilen Fiyat', value: (row) => row.userOnerilenFiyat ?? '-' },
         { header: 'Kar Orani', value: (row) => (row.karOrani > 0 ? `${Math.round(row.karOrani)}%` : '-') },
         { header: 'Karlilik Ihlali', value: 'karlilikIhlali' },
         { header: 'Guncelleme Saati', value: 'guncellemeSaati' },
       ],
     });
+  };
+
+  const handleUserPriceImport = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImportingUserPrice(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await api.post('/urun-analizi/kullanici-fiyat-import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      const mappings = response?.data?.mappings || [];
+      const map = {};
+      mappings.forEach((item) => {
+        const key = String(item.stokKodu || '').toLowerCase();
+        map[key] = Number(item.userOnerilenFiyat);
+      });
+      setUserPriceMap(map);
+      setImportSummary({
+        mappedCount: response?.data?.mappedCount || 0,
+        totalRows: response?.data?.totalRows || 0,
+        errorCount: (response?.data?.errors || []).length,
+      });
+    } catch (e) {
+      alert('Import başarısız: ' + (e?.response?.data?.error || e.message));
+    } finally {
+      setImportingUserPrice(false);
+      event.target.value = '';
+    }
   };
 
   return (
@@ -280,10 +372,40 @@ export default function UrunFiyatAnalizi() {
 
       {/* Action Bar */}
       <div className="flex items-center justify-end gap-3 mt-2">
+        <div className="relative flex items-center gap-2">
+          <span className="text-sm text-gray-600 font-medium whitespace-nowrap">Eşik (TL)</span>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={priceThresholdTl}
+            onChange={(e) => setPriceThresholdTl(e.target.value)}
+            className="form-input w-28"
+          />
+          <p className="absolute left-0 top-full mt-1 text-xs text-gray-500 whitespace-nowrap">Varsayılan eşik 200 TL&apos;dir.</p>
+        </div>
+
         <button className="btn-secondary" onClick={handleExcelExport} disabled={filteredUrunler.length === 0}>
           <FileSpreadsheet size={16} />
           Excel'e Aktar
         </button>
+
+        <button
+          className="btn-primary"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={importingUserPrice}
+        >
+          <FileSpreadsheet size={16} />
+          {importingUserPrice ? 'Import Ediliyor...' : 'Kullanıcı Fiyatı Import'}
+        </button>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          className="hidden"
+          onChange={handleUserPriceImport}
+        />
         
         <div className="relative w-64">
           <input 
@@ -301,6 +423,12 @@ export default function UrunFiyatAnalizi() {
           Filter
         </button>
       </div>
+
+      {importSummary && (
+        <div className="mt-2 text-xs text-gray-600">
+          Import sonucu: {importSummary.mappedCount} eşleşen ürün / {importSummary.totalRows} satır, {importSummary.errorCount} hatalı satır.
+        </div>
+      )}
 
       {showFilters && (
         <div className="panel p-4 grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
@@ -364,12 +492,14 @@ export default function UrunFiyatAnalizi() {
               <col className="w-[6%]" />
               <col className="w-[7%]" />
               <col className="w-[7%]" />
+              <col className="w-[7%]" />
               <col className="w-[8%]" />
-              <col className="w-[8%]" />
+              <col className="w-[7%]" />
+              <col className="w-[7%]" />
               <col className="w-[7%]" />
               <col className="w-[6%]" />
               <col className="w-[7%]" />
-              <col className="w-[7%]" />
+              <col className="w-[6%]" />
               <col className="w-[5%]" />
               <col className="w-[4%]" />
             </colgroup>
@@ -384,7 +514,9 @@ export default function UrunFiyatAnalizi() {
                 <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">İndirimli Fiyat</th>
                 <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Rakip Fiyat Ortalaması</th>
                 <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">En Ucuz Satıcı</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">En Ucuz Rakip Fiyatı</th>
                 <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Önerilen Fiyat</th>
+                <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Kullanıcı Önerilen Fiyat</th>
                 <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Kâr Oranı</th>
                 <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Karlılık İhlali</th>
                 <th className="px-2 py-2 text-[11px] leading-tight font-semibold border-r border-gray-200 break-words">Güncelleme Saati</th>
@@ -395,12 +527,12 @@ export default function UrunFiyatAnalizi() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={15} className="text-center py-10">
+                  <td colSpan={17} className="text-center py-10">
                     <Loader2 size={24} className="animate-spin text-gray-400 mx-auto" />
                   </td>
                 </tr>
-              ) : filteredUrunler.length > 0 ? (
-                filteredUrunler.map((u, i) => (
+              ) : mergedUrunler.length > 0 ? (
+                mergedUrunler.map((u, i) => (
                   <Fragment key={u.stokKodu || i}>
                     <tr className={`table-row ${expandedRow === u.stokKodu ? 'bg-gray-50' : ''}`}>
                       <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-all">{u.stokKodu}</td>
@@ -412,7 +544,9 @@ export default function UrunFiyatAnalizi() {
                     <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.indirimliFiyat > 0 ? u.indirimliFiyat : '-'}</td>
                     <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.rakipFiyatOrtalamasi > 0 ? Math.round(u.rakipFiyatOrtalamasi) : '-'}</td>
                     <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.enUcuzSatici}</td>
+                    <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.enUcuzRakipFiyati > 0 ? Math.round(u.enUcuzRakipFiyati) : '-'}</td>
                     <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.onerilenFiyat > 0 ? u.onerilenFiyat : '-'}</td>
+                    <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.userOnerilenFiyat ? u.userOnerilenFiyat : '-'}</td>
                     <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.karOrani > 0 ? `%${Math.round(u.karOrani)}` : '-'}</td>
                     <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.karlilikIhlali}</td>
                     <td className="px-2 py-2 text-xs align-top border-r border-gray-200 break-words">{u.guncellemeSaati}</td>
@@ -433,12 +567,12 @@ export default function UrunFiyatAnalizi() {
                       </button>
                     </td>
                   </tr>
-                  {expandedRow === u.stokKodu && <UrunDetayRow urun={u} />}
+                  {expandedRow === u.stokKodu && <UrunDetayRow urun={u} userOnerilenFiyat={u.userOnerilenFiyat} />}
                 </Fragment>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={15} className="text-center py-6 text-gray-400">Veri bulunamadı</td>
+                  <td colSpan={17} className="text-center py-6 text-gray-400">Veri bulunamadı</td>
                 </tr>
               )}
             </tbody>

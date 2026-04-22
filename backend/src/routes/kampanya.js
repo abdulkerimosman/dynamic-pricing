@@ -1,6 +1,122 @@
 'use strict';
 
+const XLSX = require('xlsx');
 const { sequelize } = require('../models');
+
+function normalizeHeader(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/ı/g, 'i')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c');
+}
+
+function parseNum(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = parseFloat(String(value).replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeCommissionRate(value) {
+  if (!Number.isFinite(value)) return 0;
+  return value > 1 ? value / 100 : value;
+}
+
+function findFirstNumeric(row, aliases) {
+  for (const alias of aliases) {
+    const parsed = parseNum(row[normalizeHeader(alias)]);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function scoreCandidate(price, commissionRate, cost) {
+  if (!Number.isFinite(price)) return null;
+
+  const safeCommission = Number.isFinite(commissionRate) ? commissionRate : 0;
+  const safeCost = Number.isFinite(cost) ? cost : 0;
+  const karTutar = price - safeCost - (price * safeCommission);
+  const karOrani = safeCost > 0 ? karTutar / safeCost : Number.NEGATIVE_INFINITY;
+
+  return {
+    price,
+    commissionRate: safeCommission,
+    karTutar,
+    karOrani,
+  };
+}
+
+function pickBestPrice(row) {
+  const cost = findFirstNumeric(row, ['maliyet']) || 0;
+  const defaultCommission = findFirstNumeric(row, ['komisyon', 'komisyon_orani', 'komisyonoran']) || 0;
+
+  const candidateGroups = [
+    {
+      label: 'tier_1',
+      priceAliases: ['fiyat1', 'fiyat_1', 'fiyat_alt_limit1', 'fiyat_alt_limit_1', 'fiyataltlimit1'],
+      commissionAliases: ['komisyon1', 'komisyon_1', 'komisyon_orani1', 'komisyon_orani_1'],
+    },
+    {
+      label: 'tier_2',
+      priceAliases: ['fiyat2', 'fiyat_2', 'fiyat_ust_limit2', 'fiyat_ust_limit_2', 'fiyatustlimit2', 'fiyat_alt_limit2', 'fiyat_alt_limit_2', 'fiyataltlimit2'],
+      commissionAliases: ['komisyon2', 'komisyon_2', 'komisyon_orani2', 'komisyon_orani_2'],
+    },
+    {
+      label: 'tier_3',
+      priceAliases: ['fiyat3', 'fiyat_3', 'fiyat_ust_limit3', 'fiyat_ust_limit_3', 'fiyatustlimit3', 'fiyat_alt_limit3', 'fiyat_alt_limit_3', 'fiyataltlimit3'],
+      commissionAliases: ['komisyon3', 'komisyon_3', 'komisyon_orani3', 'komisyon_orani_3'],
+    },
+    {
+      label: 'tier_4',
+      priceAliases: ['fiyat4', 'fiyat_4', 'fiyat_ust_limit4', 'fiyat_ust_limit_4', 'fiyatustlimit4', 'fiyat_alt_limit4', 'fiyat_alt_limit_4', 'fiyataltlimit4'],
+      commissionAliases: ['komisyon4', 'komisyon_4', 'komisyon_orani4', 'komisyon_orani_4'],
+    },
+    {
+      label: 'current',
+      priceAliases: ['guncel_py_satis_fiyati', 'guncel_pysatisfiyati', 'pazaryeri_indirim_fiyati', 'mevcut_fiyat', 'komisyona_esas_fiyat', 'satis_fiyati'],
+      commissionAliases: ['komisyon', 'komisyon_orani', 'komisyonoran'],
+    },
+  ];
+
+  const candidates = candidateGroups
+    .map((group) => {
+      const price = findFirstNumeric(row, group.priceAliases);
+      if (!Number.isFinite(price)) return null;
+
+      const commissionRate = findFirstNumeric(row, group.commissionAliases);
+      const candidate = scoreCandidate(price, normalizeCommissionRate(commissionRate !== null ? commissionRate : defaultCommission), cost);
+      return candidate ? { ...candidate, label: group.label } : null;
+    })
+    .filter(Boolean);
+
+  if (!candidates.length) {
+    return {
+      chosenPrice: null,
+      chosenKarOrani: null,
+      chosenKarTutar: null,
+      chosenSource: '',
+    };
+  }
+
+  candidates.sort((a, b) => {
+    if (b.karOrani !== a.karOrani) return b.karOrani - a.karOrani;
+    if (b.karTutar !== a.karTutar) return b.karTutar - a.karTutar;
+    return b.price - a.price;
+  });
+
+  const best = candidates[0];
+  return {
+    chosenPrice: Math.round(best.price * 100) / 100,
+    chosenKarOrani: Math.round(best.karOrani * 10000) / 100,
+    chosenKarTutar: Math.round(best.karTutar * 100) / 100,
+    chosenSource: best.label,
+  };
+}
 
 module.exports = async function (fastify, opts) {
   // Get all marketplace channels (kanal_sahibi = 0)
@@ -214,6 +330,65 @@ module.exports = async function (fastify, opts) {
     });
 
     return { mesaj: 'Kampanya başarıyla kaydedildi.' };
+  });
+
+  fastify.post('/dosya-isle', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const file = await request.file();
+    if (!file) {
+      return reply.code(400).send({ error: 'Excel dosyasi gerekli (file).' });
+    }
+
+    const buffer = await file.toBuffer();
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames.find((name) => normalizeHeader(name).includes('kampanya')) || workbook.SheetNames[0];
+
+    if (!sheetName) {
+      return reply.code(400).send({ error: 'Excel dosyasi bos veya uygun sayfa bulunamadi.' });
+    }
+
+    const sheet = workbook.Sheets[sheetName];
+    const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+    if (!matrix.length || matrix.length < 2) {
+      return reply.code(400).send({ error: 'Excel dosyasi bos veya uygun satir bulunamadi.' });
+    }
+
+    const headers = matrix[0].map((header) => String(header || '').trim());
+    const outputHeaders = [...headers, 'chosen_price', 'chosen_kar_orani', 'chosen_kar_tutari', 'chosen_source'];
+
+    const outputRows = matrix.slice(1).map((values) => {
+      const row = {};
+      headers.forEach((header, index) => {
+        row[header] = values[index] ?? '';
+      });
+
+      const normalizedRow = {};
+      Object.keys(row).forEach((key) => {
+        normalizedRow[normalizeHeader(key)] = row[key];
+      });
+
+      const best = pickBestPrice(normalizedRow);
+
+      return {
+        ...row,
+        chosen_price: best.chosenPrice ?? '',
+        chosen_kar_orani: best.chosenKarOrani ?? '',
+        chosen_kar_tutari: best.chosenKarTutar ?? '',
+        chosen_source: best.chosenSource,
+      };
+    });
+
+    const outputSheet = XLSX.utils.json_to_sheet(outputRows, { header: outputHeaders });
+    const outputWorkbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(outputWorkbook, outputSheet, sheetName);
+
+    const outputBuffer = XLSX.write(outputWorkbook, { bookType: 'xlsx', type: 'buffer' });
+    const baseName = file.filename ? String(file.filename).replace(/\.[^.]+$/, '') : 'kampanya_planlama';
+
+    reply
+      .header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      .header('Content-Disposition', `attachment; filename="${baseName}_selected.xlsx"`)
+      .send(outputBuffer);
   });
 
   // GET /api/kampanya/ayarlar-analiz/:kanalId/:kategoriId/:komisyon

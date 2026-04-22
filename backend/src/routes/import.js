@@ -760,30 +760,16 @@ module.exports = async function importRoutes(fastify) {
           beden_id = beden.beden_id;
         }
 
-        const existing = await RakipFiyat.findOne({
-          where: {
-            urun_id: urun.urun_id,
-            rakip_id: rakip.rakip_id,
-            kanal_id: kanal.kanal_id,
-            beden_id: beden_id,
-          },
-          transaction: t,
-        });
-
-        if (existing) {
-          await existing.update({ fiyat: item.fiyat, veri_kazima_zamani: new Date() }, { transaction: t });
-          updatedCount += 1;
-        } else {
-          await RakipFiyat.create({
-            urun_id: urun.urun_id,
-            rakip_id: rakip.rakip_id,
-            kanal_id: kanal.kanal_id,
-            beden_id: beden_id,
-            fiyat: item.fiyat,
-            veri_kazima_zamani: new Date(),
-          }, { transaction: t });
-          createdCount += 1;
-        }
+        // Append-only history: keep every uploaded competitor price snapshot.
+        await RakipFiyat.create({
+          urun_id: urun.urun_id,
+          rakip_id: rakip.rakip_id,
+          kanal_id: kanal.kanal_id,
+          beden_id: beden_id,
+          fiyat: item.fiyat,
+          veri_kazima_zamani: new Date(),
+        }, { transaction: t });
+        createdCount += 1;
 
         if (!impactedUrunIds.includes(urun.urun_id)) {
           impactedUrunIds.push(urun.urun_id);
@@ -795,7 +781,7 @@ module.exports = async function importRoutes(fastify) {
         islem_tipi: 'IMPORT',
         tablo_adi: 'rakip_fiyatlar',
         kayit_id: String(normalizedRows.length),
-        aciklama: `Rakip fiyat import commit: ${normalizedRows.length} satir, ${createdCount} yeni, ${updatedCount} guncelleme.`,
+        aciklama: `Rakip fiyat import commit: ${normalizedRows.length} satir, ${createdCount} yeni snapshot, ${updatedCount} guncelleme.`,
         ip_adresi: request.ip,
       }, { transaction: t });
 

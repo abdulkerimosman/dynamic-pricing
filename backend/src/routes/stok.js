@@ -1,5 +1,5 @@
 'use strict';
-const { Stok, Urun, Beden } = require('../models');
+const { Stok, Urun, Beden, sequelize } = require('../models');
 
 module.exports = async function stokRoutes(fastify) {
   // GET /api/stok
@@ -34,7 +34,9 @@ module.exports = async function stokRoutes(fastify) {
 
   // GET /api/stok/analiz
   fastify.get('/analiz', { preHandler: [fastify.authenticate] }, async (request, reply) => {
-    const { sequelize } = require('../models');
+    const periodRaw = String(request.query.stok_period || '30');
+    const allowedPeriods = new Set(['7', '30', '90', '365']);
+    const periodDays = allowedPeriods.has(periodRaw) ? parseInt(periodRaw, 10) : 30;
     
     const dataSql = await sequelize.query(`
       SELECT 
@@ -59,36 +61,61 @@ module.exports = async function stokRoutes(fastify) {
           WHERE uc.urun_id = u.urun_id
         ), 'Unisex') as cinsiyet,
         u.guncelleme_tarihi as guncellemeSaati,
-        COALESCE((SELECT SUM(stok_miktari) FROM stok s WHERE s.urun_id = u.urun_id), 0) as toplamStok
+        COALESCE(st.toplam_stok, 0) as toplamStok,
+        COALESCE(sr.satilan_adet, 0) as satilanAdet,
+        COALESCE((SELECT COUNT(DISTINCT beden_id) FROM stok s WHERE s.urun_id = u.urun_id), 0) as toplamBeden,
+        COALESCE((SELECT COUNT(DISTINCT beden_id) FROM stok s WHERE s.urun_id = u.urun_id AND s.stok_miktari > 0), 0) as aktifBeden,
+        ls.son_satis_tarihi
       FROM urunler u
       LEFT JOIN marka m ON u.marka_id = m.marka_id
       LEFT JOIN kategoriler kat ON kat.kategori_id = u.kategori_id
-    `, { type: sequelize.QueryTypes.SELECT });
+      LEFT JOIN (
+        SELECT urun_id, SUM(stok_miktari) as toplam_stok
+        FROM stok
+        GROUP BY urun_id
+      ) st ON st.urun_id = u.urun_id
+      LEFT JOIN (
+        SELECT ku.urun_id, SUM(s.satis_miktari) as satilan_adet
+        FROM satislar s
+        JOIN kanal_urun ku ON ku.kanal_urun_id = s.kanal_urun_id
+        WHERE s.satis_tarihi >= DATE_SUB(NOW(), INTERVAL :periodDays DAY)
+        GROUP BY ku.urun_id
+      ) sr ON sr.urun_id = u.urun_id
+      LEFT JOIN (
+        SELECT ku.urun_id, MAX(s.satis_tarihi) as son_satis_tarihi
+        FROM satislar s
+        JOIN kanal_urun ku ON ku.kanal_urun_id = s.kanal_urun_id
+        GROUP BY ku.urun_id
+      ) ls ON ls.urun_id = u.urun_id
+    `, { replacements: { periodDays }, type: sequelize.QueryTypes.SELECT });
 
     let sifirStokSayisi = 0;
     let kritikStokSayisi = 0;
     let stokFazlasiSayisi = 0;
     let yuksekBedenKriklikSayisi = 0;
 
-    const list = dataSql.map(u => {
-      // Deterministic pseudorandom for visual stability
-      const pseudoRand = (u.stokKodu || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-      
-      const satisHiz = (pseudoRand % 300) + 10;
-      const tstok = parseInt(u.toplamStok);
-      const stokGun = tstok === 0 ? 0 : Math.round((tstok / satisHiz) * 30);
-      const bedenKiriklikOrani = (pseudoRand % 60) + 40; // 40 to 100
-      
+    const list = dataSql.map((u) => {
+      const tstok = parseInt(u.toplamStok || 0, 10);
+      const satisAdet = parseInt(u.satilanAdet || 0, 10);
+      const satisHiz = periodDays > 0 ? Number((satisAdet / periodDays).toFixed(2)) : 0;
+      const stokGun = satisHiz > 0 ? Math.round(tstok / satisHiz) : 0;
+
+      const toplamBeden = Math.max(parseInt(u.toplamBeden || 0, 10), 1);
+      const aktifBeden = parseInt(u.aktifBeden || 0, 10);
+      const bedenKiriklikOrani = Math.round((aktifBeden / toplamBeden) * 100);
+
       let oneri = '-';
-      if (stokGun > 0 && stokGun < 15) {
+      if (tstok === 0) {
+        oneri = 'Sıfır Stok';
+        sifirStokSayisi++;
+      } else if (satisAdet > 0 && stokGun > 0 && stokGun <= 30) {
         oneri = 'Stok Tedariği';
         kritikStokSayisi++;
-      } else if (stokGun > 60) {
+      } else if (satisAdet === 0 || stokGun >= 90) {
         oneri = 'İndirim Uygula';
         stokFazlasiSayisi++;
       }
-      
-      if (tstok === 0) sifirStokSayisi++;
+
       if (bedenKiriklikOrani < 70) yuksekBedenKriklikSayisi++;
 
       return {
@@ -97,11 +124,13 @@ module.exports = async function stokRoutes(fastify) {
         satisHiz,
         stokGun,
         bedenKiriklikOrani,
-        oneri
+        oneri,
+        sonSatisTarihi: u.son_satis_tarihi
       };
     });
 
     return {
+      periodDays,
       kpis: {
         sifirStokSayisi,
         kritikStokSayisi,
