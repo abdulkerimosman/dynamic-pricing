@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Tag, CalendarRange,
-  Package, Settings,
+  Package, Settings, Upload, Database,
 } from 'lucide-react';
 import clsx from 'clsx';
 import BrandLogo from './BrandLogo';
@@ -11,7 +11,9 @@ const NAV_ITEMS = [
   { to: '/urunler',     icon: Tag,             label: 'Ürün Fiyat Analizi' },
   { to: '/kampanya',    icon: CalendarRange,   label: 'Kampanya Planlama' },
   { to: '/stok',        icon: Package,         label: 'Stok & Talep' },
-  { to: '/ayarlar',     icon: Settings,        label: 'Ayarlar & Import' },
+  { to: '/master-veriler', icon: Database,     label: 'Master Veri Yonetimi' },
+  { to: '/importlar',   icon: Upload,          label: 'Importlar' },
+  { to: '/ayarlar',     icon: Settings,        label: 'Ayarlar' },
 ];
 
 export default function Sidebar() {

@@ -17,22 +17,8 @@ function pickN(arr, start, n) {
 async function run() {
   const rng = makeRng(20260414);
 
-  // Ensure commission tier table exists before seed_full.js truncates it.
+  // Ensure database is ready
   await sequelize.authenticate();
-  await sequelize.query(`
-    CREATE TABLE IF NOT EXISTS kanal_komisyon_kademeleri (
-      komisyon_id INT AUTO_INCREMENT PRIMARY KEY,
-      kanal_id INT NOT NULL,
-      kategori_id INT NOT NULL,
-      fiyat_alt_limit DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-      fiyat_ust_limit DECIMAL(10,2) NOT NULL DEFAULT 999999.00,
-      komisyon_orani DECIMAL(5,4) NOT NULL,
-      gecerlilik_baslangic TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      gecerlilik_bitis TIMESTAMP NULL,
-      FOREIGN KEY (kanal_id) REFERENCES kanallar(kanal_id) ON DELETE CASCADE,
-      FOREIGN KEY (kategori_id) REFERENCES kategoriler(kategori_id) ON DELETE CASCADE
-    );
-  `);
 
   console.log('1) Running full base seed...');
   execSync('node seed_full.js', {

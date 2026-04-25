@@ -24,6 +24,11 @@ const {
   Sezon,
 } = require('../models');
 const pricingEngine = require('../services/pricingEngine');
+const {
+  validateStokDependencies,
+  validateRakipFiyatlarDependencies,
+  validateSatislarDependencies,
+} = require('../services/importValidator');
 
 function normalizeHeader(value) {
   return String(value || '')
@@ -64,6 +69,60 @@ function parseNum(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+  // ========== DIAGNOSTIC ENDPOINT ==========
+  /**
+   * GET /check-dependencies
+   * Helps users see what reference data exists before attempting Tier 2 imports
+   */
+  fastify.get('/check-dependencies', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const [
+        urunCount, bedenCount, rakipCount, kanalCount,
+        urunlerList, bedenlerList, rakiplerList, kanallarList
+      ] = await Promise.all([
+        Urun.count(),
+        Beden.count(),
+        Rakip.count(),
+        Kanal.count(),
+        Urun.findAll({ attributes: ['urun_id', 'stok_kodu', 'urun_adi'], limit: 50, order: [['stok_kodu', 'ASC']] }),
+        Beden.findAll({ attributes: ['beden_id', 'beden_adi'], limit: 50, order: [['beden_adi', 'ASC']] }),
+        Rakip.findAll({ attributes: ['rakip_id', 'rakip_adi'], limit: 50, order: [['rakip_adi', 'ASC']] }),
+        Kanal.findAll({ attributes: ['kanal_id', 'kanal_adi', 'kanal_sahibi'], limit: 50, order: [['kanal_adi', 'ASC']] }),
+      ]);
+
+      return {
+        status: 'success',
+        summary: {
+          urunlerToplam: urunCount,
+          bedenlerToplam: bedenCount,
+          rakiplerToplam: rakipCount,
+          kanallarToplam: kanalCount,
+        },
+        readyForStokImport: urunCount > 0 && bedenCount > 0,
+        readyForRakipFiyatImport: urunCount > 0 && rakipCount > 0 && kanalCount > 0,
+        readyForSatislarImport: urunCount > 0 && kanalCount > 0,
+        samples: {
+          urunler: urunlerList,
+          bedenler: bedenlerList,
+          rakipler: rakiplerList,
+          kanallar: kanallarList,
+        },
+        nextSteps: {
+          stokNotReady: urunCount === 0 || bedenCount === 0
+            ? 'Urunler ve Bedenler seed edilmeli'
+            : 'Hazir',
+          rakipFiyatNotReady: urunCount === 0 || rakipCount === 0 || kanalCount === 0
+            ? 'Urunler, Rakipler ve Kanallar seed edilmeli'
+            : 'Hazir',
+          satislarNotReady: urunCount === 0 || kanalCount === 0
+            ? 'Urunler ve Kanallar seed edilmeli'
+            : 'Hazir',
+        },
+      };
+    } catch (error) {
+      return reply.code(400).send({ success: false, error: error.message });
+    }
+  });
 function parseRowsFromWorkbook(buffer, preferredSheetKey) {
   const workbook = XLSX.read(buffer, { type: 'buffer' });
   const preferredSheet = workbook.SheetNames.find((name) => normalizeHeader(name) === preferredSheetKey);
@@ -181,7 +240,215 @@ function validateDuplicate(rows, keyFn, label) {
   return duplicates;
 }
 
+const TEMPLATE_DEFINITIONS = {
+  'urun-master': {
+    fileName: 'urun_master_ornek.xlsx',
+    sheetName: 'urunler',
+    headers: ['stok_kodu', 'barkod', 'urun_adi', 'marka_adi', 'kategori_adi', 'maliyet', 'resim_url', 'cinsiyetler'],
+    rows: [
+      {
+        stok_kodu: 'SPT-1001',
+        barkod: '868000000001',
+        urun_adi: 'Ornek Tisort',
+        marka_adi: 'Sporthink',
+        kategori_adi: 'Tisort',
+        maliyet: 149.9,
+        resim_url: 'https://example.com/urunler/spt-1001.jpg',
+        cinsiyetler: 'Unisex',
+      },
+    ],
+  },
+  stok: {
+    fileName: 'stok_ornek.xlsx',
+    sheetName: 'stok',
+    headers: ['stok_kodu', 'beden_adi', 'stok_miktari', 'stok_katsayisi'],
+    rows: [
+      {
+        stok_kodu: 'SPT-1001',
+        beden_adi: 'M',
+        stok_miktari: 24,
+        stok_katsayisi: 1,
+      },
+    ],
+  },
+  'kanal-fiyat': {
+    fileName: 'kanal_fiyat_ornek.xlsx',
+    sheetName: 'kanal_fiyat',
+    headers: ['kanal_adi', 'stok_kodu', 'web_liste_fiyati', 'web_indirim_fiyati', 'pazaryeri_liste_fiyat', 'pazaryeri_indirim_fiyat'],
+    rows: [
+      {
+        kanal_adi: 'Sporthink Web',
+        stok_kodu: 'SPT-1001',
+        web_liste_fiyati: 249.9,
+        web_indirim_fiyati: 219.9,
+        pazaryeri_liste_fiyat: 279.9,
+        pazaryeri_indirim_fiyati: 239.9,
+      },
+    ],
+  },
+  'rakip-fiyat': {
+    fileName: 'rakip_fiyat_ornek.xlsx',
+    sheetName: 'rakip_fiyat',
+    headers: ['stok_kodu', 'rakip_adi', 'kanal_adi', 'beden_adi', 'fiyat'],
+    rows: [
+      {
+        stok_kodu: 'SPT-1001',
+        rakip_adi: 'Rakip Magaza A',
+        kanal_adi: 'Trendyol',
+        beden_adi: 'M',
+        fiyat: 229.9,
+      },
+    ],
+  },
+  satislar: {
+    fileName: 'satislar_ornek.xlsx',
+    sheetName: 'satislar',
+    headers: ['stok_kodu', 'kanal_adi', 'satis_miktari', 'birim_fiyat', 'maliyet_snapshot', 'satis_tarihi'],
+    rows: [
+      {
+        stok_kodu: 'SPT-1001',
+        kanal_adi: 'Sporthink Web',
+        satis_miktari: 2,
+        birim_fiyat: 219.9,
+        maliyet_snapshot: 149.9,
+        satis_tarihi: '2026-04-23',
+      },
+    ],
+  },
+  'fiyatlandirma-kurali': {
+    fileName: 'fiyatlandirma_kurali_ornek.xlsx',
+    sheetName: 'fiyatlandirma_kurallari',
+    headers: ['kanal_adi', 'kategori_adi', 'max_indirim', 'min_kar', 'rekabet_katsayisi', 'geri_gelinebilecek_yuzde', 'aylik_satis_hedefi', 'haftalik_satis_hedefi', 'aktiflik_durumu', 'gecerlilik_baslangic', 'gecerlilik_bitis'],
+    rows: [
+      {
+        kanal_adi: 'Sporthink Web',
+        kategori_adi: 'Tisort',
+        max_indirim: 0.25,
+        min_kar: 0.3,
+        rekabet_katsayisi: 1,
+        geri_gelinebilecek_yuzde: 0.08,
+        aylik_satis_hedefi: 50000,
+        haftalik_satis_hedefi: 12000,
+        aktiflik_durumu: true,
+        gecerlilik_baslangic: '2026-04-01',
+        gecerlilik_bitis: '2026-12-31',
+      },
+    ],
+  },
+  kampanya: {
+    fileName: 'kampanya_ornek.xlsx',
+    sheetName: 'kampanya',
+    headers: ['kanal_adi', 'kampanya_adi', 'baslangic_tarihi', 'bitis_tarihi', 'hedef_indirim_orani', 'hedef_karlilik', 'sezon_adi'],
+    rows: [
+      {
+        kanal_adi: 'Trendyol',
+        kampanya_adi: 'Yaz Baslangic Kampanyasi',
+        baslangic_tarihi: '2026-05-01',
+        bitis_tarihi: '2026-05-31',
+        hedef_indirim_orani: 0.15,
+        hedef_karlilik: 0.28,
+        sezon_adi: 'Yaz',
+      },
+    ],
+  },
+  'kullanici-fiyat': {
+    fileName: 'kullanici_fiyat_ornek.xlsx',
+    sheetName: 'user_prices',
+    headers: ['stok_kodu', 'kullanici_onerilen_fiyat'],
+    rows: [
+      {
+        stok_kodu: 'SPT-1001',
+        kullanici_onerilen_fiyat: 214.9,
+      },
+    ],
+  },
+  'kampanya-planlama': {
+    fileName: 'kampanya_planlama_ornek.xlsx',
+    sheetName: 'kampanya_planlama',
+    headers: ['stok_kodu', 'stok_adi', 'marka', 'kategori', 'maliyet', 'komisyon_orani', 'fiyat1', 'komisyon1', 'fiyat2', 'komisyon2', 'fiyat3', 'komisyon3', 'guncel_py_satis_fiyati'],
+    rows: [
+      {
+        stok_kodu: 'SPT-1001',
+        stok_adi: 'Ornek Tisort',
+        marka: 'Sporthink',
+        kategori: 'Tisort',
+        maliyet: 149.9,
+        komisyon_orani: 0.12,
+        fiyat1: 219.9,
+        komisyon1: 0.12,
+        fiyat2: 229.9,
+        komisyon2: 0.14,
+        fiyat3: 239.9,
+        komisyon3: 0.16,
+        guncel_py_satis_fiyati: 224.9,
+      },
+    ],
+  },
+  'website-output': {
+    fileName: 'website_fiyat_cikisi_ornek.xlsx',
+    sheetName: 'website_fiyat_cikisi',
+    headers: ['stok_kodu', 'urun_adi', 'mevcut_web_fiyati', 'onerilen_web_fiyati', 'beklenen_karlilik_yuzde', 'rakip_ortalama_fiyat', 'stok_durumu', 'not'],
+    rows: [
+      {
+        stok_kodu: 'SPT-1001',
+        urun_adi: 'Ornek Tisort',
+        mevcut_web_fiyati: 229.9,
+        onerilen_web_fiyati: 219.9,
+        beklenen_karlilik_yuzde: 31.4,
+        rakip_ortalama_fiyat: 234.9,
+        stok_durumu: 'Normal',
+        not: 'Web sitesi fiyat guncelleme cikisi',
+      },
+    ],
+  },
+  'marketplace-output': {
+    fileName: 'marketplace_fiyat_cikisi_ornek.xlsx',
+    sheetName: 'marketplace_fiyat_cikisi',
+    headers: ['stok_kodu', 'urun_adi', 'kanal_adi', 'fiyat1', 'komisyon1', 'fiyat2', 'komisyon2', 'fiyat3', 'komisyon3', 'chosen_price', 'chosen_kar_orani', 'chosen_kar_tutari', 'chosen_source'],
+    rows: [
+      {
+        stok_kodu: 'SPT-1001',
+        urun_adi: 'Ornek Tisort',
+        kanal_adi: 'Trendyol',
+        fiyat1: 219.9,
+        komisyon1: 0.12,
+        fiyat2: 229.9,
+        komisyon2: 0.14,
+        fiyat3: 239.9,
+        komisyon3: 0.16,
+        chosen_price: 229.9,
+        chosen_kar_orani: 0.31,
+        chosen_kar_tutari: 72.1,
+        chosen_source: 'tier_2',
+      },
+    ],
+  },
+};
+
+function buildTemplateBuffer(template) {
+  const worksheet = XLSX.utils.json_to_sheet(template.rows, { header: template.headers });
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, template.sheetName);
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+}
+
 module.exports = async function importRoutes(fastify) {
+  fastify.get('/template/:templateKey', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const { templateKey } = request.params;
+    const template = TEMPLATE_DEFINITIONS[templateKey];
+
+    if (!template) {
+      return reply.code(404).send({ error: 'Bilinmeyen template anahtari.' });
+    }
+
+    const buffer = buildTemplateBuffer(template);
+
+    return reply
+      .header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      .header('Content-Disposition', `attachment; filename="${template.fileName}"`)
+      .send(buffer);
+  });
+
   // 1) Product Master Import
   fastify.post('/urun-master', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const data = await request.file();
@@ -189,8 +456,6 @@ module.exports = async function importRoutes(fastify) {
 
     const dryRun = parseBool(data.fields?.dryRun?.value, true);
     const triggerPricing = parseBool(data.fields?.triggerPricing?.value, true);
-    const allowCreateMarka = parseBool(data.fields?.allowCreateMarka?.value, true);
-    const allowCreateKategori = parseBool(data.fields?.allowCreateKategori?.value, true);
     const defaultKarBeklentisiRaw = parseNum(data.fields?.defaultKarBeklentisi?.value ?? '0.30');
     const defaultKarBeklentisi = Number.isFinite(defaultKarBeklentisiRaw) ? defaultKarBeklentisiRaw : 0.30;
 
@@ -270,6 +535,26 @@ module.exports = async function importRoutes(fastify) {
       };
     }
 
+      // Validate foreign key dependencies
+      const fkValidation = await validateStokDependencies(normalizedRows);
+      if (!fkValidation.valid) {
+        return reply.code(400).send({
+          success: false,
+          dryRun: true,
+          message: 'Gerekli referans veriler eksiktir. Oncesinde bu tabloları seed etmelisiniz.',
+          missingDependencies: fkValidation.missingDependencies,
+          instruction: 'Lutfen asagidaki tabloları kontrol edip eksik verileri eklemelisiniz:',
+          details: {
+            ...(fkValidation.missingDependencies.urunler.length > 0 && {
+              'Eksik Urunler (stok_kodu)': fkValidation.missingDependencies.urunler,
+            }),
+            ...(fkValidation.missingDependencies.beden.length > 0 && {
+              'Eksik Bedenler (beden_adi)': fkValidation.missingDependencies.beden,
+            }),
+          },
+        });
+      }
+
     const t = await sequelize.transaction();
     let touchedKanalUrunIds = [];
     try {
@@ -286,20 +571,14 @@ module.exports = async function importRoutes(fastify) {
         let marka = markaCache.get(item.markaAdi);
         if (!marka) {
           marka = await Marka.findOne({ where: { marka_adi: item.markaAdi }, transaction: t });
-          if (!marka) {
-            if (!allowCreateMarka) throw new Error(`Marka bulunamadi: ${item.markaAdi}`);
-            marka = await Marka.create({ marka_adi: item.markaAdi }, { transaction: t });
-          }
+          if (!marka) throw new Error(`Marka bulunamadi: ${item.markaAdi}`);
           markaCache.set(item.markaAdi, marka);
         }
 
         let kategori = kategoriCache.get(item.kategoriAdi);
         if (!kategori) {
           kategori = await Kategori.findOne({ where: { kategori_adi: item.kategoriAdi }, transaction: t });
-          if (!kategori) {
-            if (!allowCreateKategori) throw new Error(`Kategori bulunamadi: ${item.kategoriAdi}`);
-            kategori = await Kategori.create({ kategori_adi: item.kategoriAdi, kar_beklentisi: defaultKarBeklentisi }, { transaction: t });
-          }
+          if (!kategori) throw new Error(`Kategori bulunamadi: ${item.kategoriAdi}`);
           kategoriCache.set(item.kategoriAdi, kategori);
         }
 
@@ -388,7 +667,6 @@ module.exports = async function importRoutes(fastify) {
 
     const dryRun = parseBool(data.fields?.dryRun?.value, true);
     const triggerPricing = parseBool(data.fields?.triggerPricing?.value, true);
-    const allowCreateBeden = parseBool(data.fields?.allowCreateBeden?.value, false);
 
     const buffer = await data.toBuffer();
     const rows = parseRowsFromWorkbook(buffer, 'stok');
@@ -444,6 +722,32 @@ module.exports = async function importRoutes(fastify) {
       };
     }
 
+      // Validate foreign key dependencies
+      const fkValidation = await validateRakipFiyatlarDependencies(normalizedRows);
+      if (!fkValidation.valid) {
+        return reply.code(400).send({
+          success: false,
+          dryRun: true,
+          message: 'Gerekli referans veriler eksiktir. Oncesinde bu tabloları seed etmelisiniz.',
+          missingDependencies: fkValidation.missingDependencies,
+          instruction: 'Lutfen asagidaki tabloları kontrol edip eksik verileri eklemelisiniz:',
+          details: {
+            ...(fkValidation.missingDependencies.urunler.length > 0 && {
+              'Eksik Urunler (stok_kodu)': fkValidation.missingDependencies.urunler,
+            }),
+            ...(fkValidation.missingDependencies.rakipler.length > 0 && {
+              'Eksik Rakipler (rakip_adi)': fkValidation.missingDependencies.rakipler,
+            }),
+            ...(fkValidation.missingDependencies.kanallar.length > 0 && {
+              'Eksik Kanallar (kanal_adi)': fkValidation.missingDependencies.kanallar,
+            }),
+            ...(fkValidation.missingDependencies.beden.length > 0 && {
+              'Eksik Bedenler (beden_adi)': fkValidation.missingDependencies.beden,
+            }),
+          },
+        });
+      }
+
     const t = await sequelize.transaction();
     let touchedUrunIds = [];
     try {
@@ -455,10 +759,7 @@ module.exports = async function importRoutes(fastify) {
         if (!urun) throw new Error(`Urun bulunamadi: ${item.stokKodu}`);
 
         let beden = await Beden.findOne({ where: { beden_adi: item.bedenAdi }, transaction: t });
-        if (!beden) {
-          if (!allowCreateBeden) throw new Error(`Beden bulunamadi: ${item.bedenAdi}`);
-          beden = await Beden.create({ beden_adi: item.bedenAdi }, { transaction: t });
-        }
+        if (!beden) throw new Error(`Beden bulunamadi: ${item.bedenAdi}`);
 
         const existing = await Stok.findOne({ where: { urun_id: urun.urun_id, beden_id: beden.beden_id }, transaction: t });
 
@@ -589,6 +890,29 @@ module.exports = async function importRoutes(fastify) {
         preview: normalizedRows.slice(0, 10),
       };
     }
+
+      // Validate foreign key dependencies
+      const fkValidation = await validateSatislarDependencies(normalizedRows);
+      if (!fkValidation.valid) {
+        return reply.code(400).send({
+          success: false,
+          dryRun: true,
+          message: 'Gerekli referans veriler eksiktir. Oncesinde bu tabloları seed etmelisiniz.',
+          missingDependencies: fkValidation.missingDependencies,
+          instruction: 'Lutfen asagidaki tabloları kontrol edip eksik verileri eklemelisiniz:',
+          details: {
+            ...(fkValidation.missingDependencies.urunler.length > 0 && {
+              'Eksik Urunler (stok_kodu)': fkValidation.missingDependencies.urunler,
+            }),
+            ...(fkValidation.missingDependencies.kanallar.length > 0 && {
+              'Eksik Kanallar (kanal_adi)': fkValidation.missingDependencies.kanallar,
+            }),
+            ...(fkValidation.missingDependencies.kanal_urun.length > 0 && {
+              'Eksik Urun-Kanal Iliskilendirmeler': fkValidation.missingDependencies.kanal_urun,
+            }),
+          },
+        });
+      }
 
     const t = await sequelize.transaction();
     let touchedKanalUrunIds = [];
@@ -825,6 +1149,7 @@ module.exports = async function importRoutes(fastify) {
     if (!data) return reply.code(400).send({ error: 'Excel dosyasi gerekli (file).' });
 
     const dryRun = parseBool(data.fields?.dryRun?.value, true);
+    const triggerPricing = parseBool(data.fields?.triggerPricing?.value, true);
 
     const buffer = await data.toBuffer();
     const rows = parseRowsFromWorkbook(buffer, 'satislar');
@@ -895,6 +1220,7 @@ module.exports = async function importRoutes(fastify) {
     const t = await sequelize.transaction();
     try {
       let createdCount = 0;
+      const touchedKanalUrunIds = [];
 
       for (const item of normalizedRows) {
         const urun = await Urun.findOne({ where: { stok_kodu: item.stokKodu }, transaction: t });
@@ -920,6 +1246,8 @@ module.exports = async function importRoutes(fastify) {
           satis_tarihi: item.satisTarihi,
         }, { transaction: t });
         createdCount += 1;
+
+        touchedKanalUrunIds.push(kanalUrun.kanal_urun_id);
       }
 
       await IslemLog.create({
@@ -933,12 +1261,21 @@ module.exports = async function importRoutes(fastify) {
 
       await t.commit();
 
+      const uniqueKanalUrunIds = [...new Set(touchedKanalUrunIds)];
+      const pricingStats = triggerPricing && uniqueKanalUrunIds.length > 0
+        ? await triggerPricingForKanalUrunIds(uniqueKanalUrunIds)
+        : { generated: 0, skipped: 0 };
+
       return {
         success: true,
         dryRun: false,
         totalRows: rows.length,
         processedRows: normalizedRows.length,
         createdCount,
+        impactedKanalUrunCount: uniqueKanalUrunIds.length,
+        pricingTriggered: triggerPricing,
+        pricingGeneratedCount: pricingStats.generated,
+        pricingSkippedCount: pricingStats.skipped,
         message: `${createdCount} satis kaydı başarıyla import edildi.`,
       };
     } catch (error) {

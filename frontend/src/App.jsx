@@ -10,6 +10,8 @@ import Stok from './pages/Stok';
 import Rakipler from './pages/Rakipler';
 import Ayarlar from './pages/Ayarlar';
 import KampanyaPlanlama from './pages/KampanyaPlanlama';
+import Importlar from './pages/Importlar';
+import MasterVeriler from './pages/MasterVeriler';
 
 function ProtectedRoute({ children }) {
   const token = useAuthStore((s) => s.token);
@@ -37,7 +39,9 @@ export default function App() {
           <Route path="stok" element={<Stok />} />
           <Route path="kampanya" element={<KampanyaPlanlama />} />
           <Route path="rakipler" element={<Rakipler />} />
+          <Route path="master-veriler" element={<MasterVeriler />} />
           <Route path="ayarlar"    element={<Ayarlar />} />
+          <Route path="importlar" element={<Importlar />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

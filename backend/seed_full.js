@@ -125,10 +125,10 @@ async function run() {
       // Per channel: web target 1.2M, marketplace 900K
       const aylikHedef = isWeb ? 1200000 : 900000;
       const haftalikHedef = Math.round(aylikHedef / 4.3);
-      ruleInserts.push(`(${ruleId++},${kanal},${kat},${isWeb ? 0 : 0.13},${isWeb ? 0 : 15},${isWeb ? 0 : 25},0.40,0.12,0.98,0.05,${aylikHedef},${haftalikHedef},1,'2025-01-01',NULL)`);
+      ruleInserts.push(`(${ruleId++},${kanal},${kat},0.40,0.12,0.98,0.05,${aylikHedef},${haftalikHedef},1,'2025-01-01',NULL)`);
     }
   }
-  await q(`INSERT INTO fiyatlandirma_kurallari (kural_id,kanal_id,kategori_id,komisyon_orani,lojistik_gideri,kargo_ucreti,max_indirim,min_kar,rekabet_katsayisi,geri_gelinebilecek_yuzde,aylik_satis_hedefi,haftalik_satis_hedefi,aktiflik_durumu,gecerlilik_baslangic,gecerlilik_bitis) VALUES ${ruleInserts.join(',')}`);
+  await q(`INSERT INTO fiyatlandirma_kurallari (kural_id,kanal_id,kategori_id,max_indirim,min_kar,rekabet_katsayisi,geri_gelinebilecek_yuzde,aylik_satis_hedefi,haftalik_satis_hedefi,aktiflik_durumu,gecerlilik_baslangic,gecerlilik_bitis) VALUES ${ruleInserts.join(',')}`,
 
   // ── PRODUCTS (50 products) ────────────────────────────────────────────────
   const SHOE_IMAGES = [

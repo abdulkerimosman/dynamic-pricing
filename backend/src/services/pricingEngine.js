@@ -1,11 +1,12 @@
 'use strict';
 
 /**
- * Sporthink Pricing Engine
+ * Sporthink Pricing Engine — Website Edition
  * Formula:
  *   Step 1: basePrice = max(cost × (1 + targetMargin), avgCompetitorPrice × compCoeff)
  *   Step 2: adjustedPrice = basePrice × stockCoeff × demandCoeff
  *   Step 3: Guardrail — if adjustedPrice < cost × (1 + minMargin) → block with alert
+ * Note: No commission, logistics, or shipping costs applied (website-only pricing)
  */
 
 class PricingEngine {
@@ -23,21 +24,15 @@ class PricingEngine {
   compute({ urun, kanalUrun, kural, rakipFiyatlar = [], stoklar = [] }) {
     const maliyet         = parseFloat(urun.maliyet);
     const karBeklentisi   = parseFloat(urun.Kategori?.kar_beklentisi ?? 0.30);
-    const komisyon        = parseFloat(kural.komisyon_orani ?? 0);
-    const lojistik        = parseFloat(kural.lojistik_gideri ?? 0);
-    const kargo           = parseFloat(kural.kargo_ucreti ?? 0);
     const maxIndirim      = parseFloat(kural.max_indirim ?? 0.40);
     const minKar          = parseFloat(kural.min_kar ?? 0.10);
     const rekabetKatsayisi= parseFloat(kural.rekabet_katsayisi ?? 1.0);
 
     // ── Step 1a: Minimum acceptable price (guardrail floor) ──────────────
-    const minFiyat = Math.round((maliyet * (1 + minKar) + lojistik + kargo) * 100) / 100;
+    const minFiyat = Math.round(maliyet * (1 + minKar) * 100) / 100;
 
     // ── Step 1b: Target price based on category margin ───────────────────
-    // On marketplace we gross up for commission
-    const komisyonCarpani = komisyon > 0 ? (1 - komisyon) : 1;
-    const hedefMaliyet    = (maliyet + lojistik + kargo) / komisyonCarpani;
-    const hedefFiyat      = Math.round(hedefMaliyet * (1 + karBeklentisi) * 100) / 100;
+    const hedefFiyat      = Math.round(maliyet * (1 + karBeklentisi) * 100) / 100;
 
     // ── Step 1c: Competitor-based target ─────────────────────────────────
     let rakipOrtalama = null;
@@ -91,7 +86,7 @@ class PricingEngine {
 
     const neden = this._buildReason({
       maliyet, hedefFiyat, rakipOrtalama, rekabetKatsayisi,
-      stockCoeff, onerilenFiyat, uyarilar, komisyon,
+      stockCoeff, onerilenFiyat, uyarilar,
     });
 
     return {
@@ -108,7 +103,6 @@ class PricingEngine {
         rekabetKatsayisi,
         stokKatsayisi: stockCoeff,
         talepKatsayisi: demandCoeff,
-        komisyon,
       },
     };
   }
@@ -131,11 +125,10 @@ class PricingEngine {
     return 1.00;
   }
 
-  _buildReason({ maliyet, hedefFiyat, rakipOrtalama, rekabetKatsayisi, stockCoeff, onerilenFiyat, uyarilar, komisyon }) {
+  _buildReason({ maliyet, hedefFiyat, rakipOrtalama, rekabetKatsayisi, stockCoeff, onerilenFiyat, uyarilar }) {
     const parts = [];
     parts.push(`Maliyet: ${maliyet} TL`);
     parts.push(`Hedef fiyat (marj bazlı): ${hedefFiyat.toFixed(2)} TL`);
-    if (komisyon > 0) parts.push(`Komisyon: %${(komisyon * 100).toFixed(0)}`);
     if (rakipOrtalama !== null) {
       parts.push(`Rakip ort.: ${rakipOrtalama.toFixed(2)} TL × ${rekabetKatsayisi} = ${(rakipOrtalama * rekabetKatsayisi).toFixed(2)} TL`);
     }

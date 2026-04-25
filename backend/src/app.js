@@ -59,6 +59,7 @@ async function buildApp() {
   app.register(require('./routes/kampanyalar'),     { prefix: '/api/kampanyalar' });
   app.register(require('./routes/satislar'),        { prefix: '/api/satislar' });
   app.register(require('./routes/kullanicilar'),    { prefix: '/api/kullanicilar' });
+  app.register(require('./routes/referans'),        { prefix: '/api/referans' });
   app.register(require('./routes/urunAnalizi'),     { prefix: '/api/urun-analizi' });
   app.register(require('./routes/import'),          { prefix: '/api/import' });
 
